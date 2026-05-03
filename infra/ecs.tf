@@ -27,7 +27,7 @@ module "ecs_execution_role" {
     }
   }
 
-  policies = {"TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"}
+  policies = { "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy" }
 
 }
 
@@ -53,7 +53,7 @@ module "ecs_task_role" {
     }
   }
 
-  policies = {"TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"}
+  policies = { "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy" }
 
   inline_policy_permissions = {
     VpcLatticeInvoke = {
@@ -68,8 +68,8 @@ module "ecs_task_role" {
   }
 }
 
-resource "aws_ecs_task_definition" "client" {
-  family                   = "client"
+resource "aws_ecs_task_definition" "client_a" {
+  family                   = "client-a"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 256
@@ -86,7 +86,36 @@ resource "aws_ecs_task_definition" "client" {
 const https = require('https');
 setInterval(() => {
   https.get('https://${aws_vpclattice_service.backend.dns_entry[0].domain_name}', res => {
-    console.log("client status:", res.statusCode);
+    console.log("client-a status:", res.statusCode);
+  }).on('error', e => console.error(e.message));
+}, 5000);
+EOF
+      ]
+
+      essential = true
+    }
+  ])
+}
+
+resource "aws_ecs_task_definition" "client_b" {
+  family                   = "client-b"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+  execution_role_arn       = module.ecs_execution_role.arn
+  task_role_arn            = module.ecs_task_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "client"
+      image = "public.ecr.aws/docker/library/node:18"
+
+      command = ["node", "-e", <<EOF
+const https = require('https');
+setInterval(() => {
+  https.get('https://${aws_vpclattice_service.backend.dns_entry[0].domain_name}', res => {
+    console.log("client-b status:", res.statusCode);
   }).on('error', e => console.error(e.message));
 }, 5000);
 EOF
@@ -100,7 +129,7 @@ EOF
 resource "aws_ecs_service" "client_a" {
   name            = "client-a"
   cluster         = module.ecs_cluster.cluster_id
-  task_definition = aws_ecs_task_definition.client.arn
+  task_definition = aws_ecs_task_definition.client_a.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
@@ -113,7 +142,7 @@ resource "aws_ecs_service" "client_a" {
 resource "aws_ecs_service" "client_b" {
   name            = "client-b"
   cluster         = module.ecs_cluster.cluster_id
-  task_definition = aws_ecs_task_definition.client.arn
+  task_definition = aws_ecs_task_definition.client_b.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
