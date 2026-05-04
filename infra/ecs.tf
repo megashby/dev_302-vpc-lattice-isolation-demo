@@ -72,27 +72,32 @@ resource "aws_ecs_task_definition" "client_a" {
   family                   = "client-a"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 256
-  memory                   = 512
-  execution_role_arn       = module.ecs_execution_role.arn
-  task_role_arn            = module.ecs_task_role.arn
+
+  cpu    = 256
+  memory = 512
+
+  execution_role_arn = module.ecs_execution_role.arn
+  task_role_arn      = module.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
       name  = "client"
       image = "public.ecr.aws/docker/library/node:18"
 
-      command = ["node", "-e", <<EOF
-const https = require('https');
-setInterval(() => {
-  https.get('https://${aws_vpclattice_service.backend.dns_entry[0].domain_name}', res => {
-    console.log("client-a status:", res.statusCode);
-  }).on('error', e => console.error(e.message));
-}, 5000);
-EOF
+      essential = true
+
+      environment = [
+        {
+          name  = "LATTICE_ENDPOINT"
+          value = aws_vpclattice_service.backend.dns_entry[0].domain_name
+        },
+        {
+          name  = "CLIENT_NAME"
+          value = "client-a"
+        }
       ]
 
-      essential = true
+      command = ["node", "-e", file("../src/ecs/client/client.js")]
     }
   ])
 }
@@ -101,27 +106,32 @@ resource "aws_ecs_task_definition" "client_b" {
   family                   = "client-b"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 256
-  memory                   = 512
-  execution_role_arn       = module.ecs_execution_role.arn
-  task_role_arn            = module.ecs_task_role.arn
+
+  cpu    = 256
+  memory = 512
+
+  execution_role_arn = module.ecs_execution_role.arn
+  task_role_arn      = module.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
       name  = "client"
       image = "public.ecr.aws/docker/library/node:18"
 
-      command = ["node", "-e", <<EOF
-const https = require('https');
-setInterval(() => {
-  https.get('https://${aws_vpclattice_service.backend.dns_entry[0].domain_name}', res => {
-    console.log("client-b status:", res.statusCode);
-  }).on('error', e => console.error(e.message));
-}, 5000);
-EOF
+      essential = true
+
+      environment = [
+        {
+          name  = "LATTICE_ENDPOINT"
+          value = aws_vpclattice_service.backend.dns_entry[0].domain_name
+        },
+        {
+          name  = "CLIENT_NAME"
+          value = "client-b"
+        }
       ]
 
-      essential = true
+      command = ["node", "-e", file("../src/ecs/client/client.js")]
     }
   ])
 }
