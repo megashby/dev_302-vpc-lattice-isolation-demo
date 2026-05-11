@@ -17,6 +17,13 @@ resource "aws_security_group" "ecs_proxy" {
 
     cidr_blocks = [module.service_vpc.vpc_cidr_block]
   }
+
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 resource "aws_ecs_cluster" "proxy" {
@@ -37,7 +44,7 @@ resource "aws_ecs_task_definition" "proxy" {
   container_definitions = jsonencode([
     {
       name  = "db-proxy"
-      image = "db-proxy:latest"
+      image = "${aws_ecr_repository.proxy.repository_url}:latest"
 
       portMappings = [{
         containerPort = 3000
