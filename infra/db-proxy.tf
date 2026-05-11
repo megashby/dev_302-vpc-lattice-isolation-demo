@@ -37,7 +37,7 @@ resource "aws_ecs_task_definition" "proxy" {
   container_definitions = jsonencode([
     {
       name  = "db-proxy"
-      image = "db-proxy:latest"
+      image = "${aws_ecr_repository.proxy.repository_url}:latest"
 
       portMappings = [{
         containerPort = 3000
