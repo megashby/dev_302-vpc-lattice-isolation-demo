@@ -14,7 +14,7 @@ resource "null_resource" "build_and_push" {
       aws ecr get-login-password --region us-east-1 \
       | docker login --username AWS --password-stdin ${aws_ecr_repository.proxy.repository_url}
 
-      docker build -t db-proxy ../src/ecs/db-proxy
+      docker build --platform linux/amd64 -t db-proxy ../src/ecs/db-proxy
       docker tag db-proxy:latest ${aws_ecr_repository.proxy.repository_url}:latest
       docker push ${aws_ecr_repository.proxy.repository_url}:latest
     EOT
