@@ -47,9 +47,17 @@ function createPool() {
 let pool = createPool();
 
 // refresh DB auth token periodically (IAM tokens expire ~15 min)
-setInterval(() => {
+setInterval(async () => {
   console.log("Refreshing IAM DB auth token...");
+
+  const oldPool = pool;
   pool = createPool();
+
+  try {
+    await oldPool.end();
+  } catch (err) {
+    console.error("Error closing old pool:", err);
+  }
 }, 10 * 60 * 1000);
 
 // Simple health endpoint (useful for ECS + Lattice checks)
@@ -72,6 +80,10 @@ app.get("/users", async (req, res) => {
       message: err.message
     });
   }
+});
+
+app.get("/", (req, res) => {
+  res.send("db-proxy alive");
 });
 
 app.listen(3000, () => {
