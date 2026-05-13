@@ -11,7 +11,7 @@ module "client_a" {
   # role_arn = module.lambda_role.iam_role_arn
 
   environment_variables = {
-    LATTICE_URL = aws_vpclattice_service.backend.dns_entry[0].domain_name
+    LATTICE_URL = aws_vpclattice_service.proxy.dns_entry[0].domain_name
   }
 }
 
@@ -28,6 +28,6 @@ module "client_b" {
   #role_arn = module.lambda_role.iam_role_arn
 
   environment_variables = {
-    LATTICE_URL = aws_vpclattice_service.backend.dns_entry[0].domain_name
+    LATTICE_URL = aws_vpclattice_service.proxy.dns_entry[0].domain_name
   }
 }

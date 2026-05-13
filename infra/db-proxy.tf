@@ -7,7 +7,7 @@ resource "aws_security_group" "ecs_proxy" {
     to_port   = 3000
     protocol  = "tcp"
 
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [module.service_vpc.vpc_cidr_block, module.ecs_vpc.vpc_cidr_block]
   }
 
   egress {
@@ -47,7 +47,9 @@ resource "aws_ecs_task_definition" "proxy" {
       image = "${aws_ecr_repository.proxy.repository_url}:latest"
 
       portMappings = [{
+        name          = "db-proxy"
         containerPort = 3000
+        protocol      = "tcp"
       }]
 
       environment = [
@@ -68,6 +70,16 @@ resource "aws_ecs_task_definition" "proxy" {
           value = "us-east-1"
         }
       ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = "/ecs/${local.name}-db-proxy"
+          awslogs-region        = "us-east-1"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
     }
   ])
 }
@@ -83,7 +95,39 @@ resource "aws_ecs_service" "proxy" {
     subnets         = module.service_vpc.private_subnets
     security_groups = [aws_security_group.ecs_proxy.id]
   }
+
+  vpc_lattice_configurations {
+    role_arn = module.db_proxy_ecs_infra_role.arn
+
+    target_group_arn = aws_vpclattice_target_group.proxy.arn
+
+    port_name = "db-proxy"
+  }
 }
+
+module "db_proxy_ecs_infra_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role"
+  version = "~> 6.0"
+
+  name = "${local.name}-db-proxy-ecs-infra-role"
+
+  create = true
+
+  trust_policy_permissions = {
+    ecs = {
+      actions = ["sts:AssumeRole"]
+      principals = [{
+        type        = "Service"
+        identifiers = ["ecs.amazonaws.com"]
+      }]
+    }
+  }
+
+  policies = {
+    infra = "arn:aws:iam::aws:policy/AmazonECSInfrastructureRolePolicyForVpcLattice"
+  }
+}
+
 
 module "db_proxy_ecs_execution_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role"
