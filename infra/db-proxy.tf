@@ -63,7 +63,7 @@ resource "aws_ecs_task_definition" "proxy" {
         },
         {
           name  = "DB_USER"
-          value = "app_user"
+          value = "proxy_user"
         },
         {
           name  = "AWS_REGION"
@@ -181,7 +181,11 @@ module "db_proxy_ecs_task_role" {
     rds_iam = {
       effect    = "Allow"
       actions   = ["rds-db:connect"]
-      resources = ["*"]
+      resources = ["arn:aws:rds-db:us-east-1:${data.aws_caller_identity.current.account_id}:dbuser:${module.rds.db_instance_resource_id}/proxy_user"]
     }
   }
+}
+
+resource "aws_cloudwatch_log_group" "proxy" {
+  name = "/ecs/demo-lattice-db-proxy"
 }
