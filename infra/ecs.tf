@@ -168,8 +168,9 @@ resource "aws_ecs_task_definition" "orders_api" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = 256
   memory                   = 512
-  execution_role_arn       = module.ecs_execution_role.arn
-  task_role_arn            = module.ecs_task_role_orders_api.arn
+
+  execution_role_arn = module.ecs_execution_role.arn
+  task_role_arn      = module.ecs_task_role_orders_api.arn
 
   container_definitions = jsonencode([
     {
@@ -186,12 +187,24 @@ resource "aws_ecs_task_definition" "orders_api" {
         }
       ]
 
+      command = ["nginx", "-g", "daemon off;"]
+
       environment = [
         {
           name  = "SERVICE_NAME"
           value = "orders-api"
         }
       ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.orders_api.name
+          awslogs-region        = "us-east-1"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
     }
   ])
 }
@@ -227,9 +240,11 @@ resource "aws_ecs_service" "orders_api" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  platform_version = "LATEST"
+
   network_configuration {
     subnets          = module.ecs_vpc.private_subnets
-    security_groups  = [resource.aws_security_group.orders_api_ecs.id]
+    security_groups  = [aws_security_group.orders_api_ecs.id]
     assign_public_ip = false
   }
 
@@ -281,4 +296,13 @@ module "ecs_task_role_orders_api" {
       resources = ["*"]
     }
   }
+}
+
+resource "aws_cloudwatch_log_group" "orders_api" {
+  name = "/ecs/demo-lattice-orders-api"
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_exec" {
+  role       = module.ecs_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
