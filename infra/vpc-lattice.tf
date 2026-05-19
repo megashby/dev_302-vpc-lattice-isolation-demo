@@ -68,16 +68,20 @@ resource "aws_vpclattice_target_group" "orders_api" {
     port     = 80
     protocol = "HTTP"
 
-    vpc_identifier = module.service_vpc.vpc_id
+    vpc_identifier = module.ecs_vpc.vpc_id
 
     health_check {
-      enabled                       = true
-      protocol                      = "HTTP"
-      path                          = "/"
-      port                          = 80
-      healthy_threshold_count       = 2
-      unhealthy_threshold_count     = 2
-      health_check_interval_seconds = 10
+      enabled          = true
+      protocol         = "HTTP"
+      protocol_version = "HTTP1"
+      path             = "/"
+      port             = 80
+
+      health_check_interval_seconds = 30
+      health_check_timeout_seconds  = 10
+
+      healthy_threshold_count   = 3
+      unhealthy_threshold_count = 3
     }
   }
 }

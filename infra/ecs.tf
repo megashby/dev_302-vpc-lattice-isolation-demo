@@ -181,7 +181,6 @@ resource "aws_ecs_task_definition" "orders_api" {
       portMappings = [
         {
           containerPort = 80
-          hostPort      = 80
           protocol      = "tcp"
           name          = "orders-api"
         }
@@ -219,8 +218,10 @@ resource "aws_security_group" "orders_api_ecs" {
     protocol  = "tcp"
 
     cidr_blocks = [
-      module.ecs_vpc.vpc_cidr_block,
-      module.service_vpc.vpc_cidr_block
+      # module.ecs_vpc.vpc_cidr_block,
+      # module.service_vpc.vpc_cidr_block
+
+      "0.0.0.0/0"
     ]
   }
 
@@ -234,11 +235,15 @@ resource "aws_security_group" "orders_api_ecs" {
 }
 
 resource "aws_ecs_service" "orders_api" {
-  name            = "orders-api"
-  cluster         = module.ecs_cluster.cluster_id
-  task_definition = aws_ecs_task_definition.orders_api.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                   = "orders-api"
+  cluster                = module.ecs_cluster.cluster_id
+  task_definition        = aws_ecs_task_definition.orders_api.arn
+  desired_count          = 1
+  launch_type            = "FARGATE"
+  enable_execute_command = true
+
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 200
 
   platform_version = "LATEST"
 
@@ -283,7 +288,10 @@ module "ecs_task_role_orders_api" {
     }
   }
 
-  policies = { "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy" }
+  policies = {
+    "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+    "ecs_exec"      = aws_iam_policy.ecs_exec.arn
+  }
 
   inline_policy_permissions = {
     VpcLatticeInvoke = {
@@ -305,4 +313,47 @@ resource "aws_cloudwatch_log_group" "orders_api" {
 resource "aws_iam_role_policy_attachment" "ecs_exec" {
   role       = module.ecs_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_policy" "ecs_exec" {
+  name        = "ecs-exec-orders-api"
+  description = "Allow ECS Exec via SSM Messages"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ECSExecSSMMessages"
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ECSExecSSMCore"
+        Effect = "Allow"
+        Action = [
+          "ssm:UpdateInstanceInformation"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ECSExecEC2Messages"
+        Effect = "Allow"
+        Action = [
+          "ec2messages:SendCommand",
+          "ec2messages:GetEndpoint",
+          "ec2messages:CreateControlChannel",
+          "ec2messages:CreateDataChannel",
+          "ec2messages:OpenControlChannel",
+          "ec2messages:OpenDataChannel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
