@@ -11,7 +11,7 @@ resource "aws_ecs_task_definition" "maintenance" {
   container_definitions = jsonencode([
     {
       name      = "maintenance"
-      image     = "public.ecr.aws/docker/library/nginx:latest"
+      image     = "${aws_ecr_repository.maintenance.repository_url}:latest"
       essential = true
 
       portMappings = [
@@ -199,4 +199,27 @@ resource "aws_vpclattice_auth_policy" "maintenance_normal" {
       }
     ]
   })
+}
+
+resource "aws_ecr_repository" "maintenance" {
+  name = "${local.name}-maintenance"
+}
+
+resource "null_resource" "build_and_push_maintenance" {
+
+  triggers = {
+    index      = filemd5("../src/ecs/maintenance/index.html")
+    dockerfile = filemd5("../src/ecs/maintenance/Dockerfile")
+  }
+
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr get-login-password --region us-east-1 \
+      | docker login --username AWS --password-stdin ${aws_ecr_repository.maintenance.repository_url}
+
+      docker build --platform linux/amd64 -t maintenance ../src/ecs/maintenance
+      docker tag maintenance:latest ${aws_ecr_repository.maintenance.repository_url}:latest
+      docker push ${aws_ecr_repository.maintenance.repository_url}:latest
+    EOT
+  }
 }
