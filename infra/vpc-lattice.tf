@@ -129,3 +129,4 @@ resource "aws_vpclattice_auth_policy" "orders_api_normal" {
     ]
   })
 }
+
