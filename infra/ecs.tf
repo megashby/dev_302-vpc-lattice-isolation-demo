@@ -53,18 +53,33 @@ module "ecs_task_role" {
     }
   }
 
-  policies = { "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy" }
+  policies = {
+    "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+    "ecs_exec"      = aws_iam_policy.ecs_exec.arn
+  "vpc_lattice_invoke" = aws_iam_policy.vpc_lattice_invoke.arn }
 
-  inline_policy_permissions = {
-    VpcLatticeInvoke = {
-      effect = "Allow"
+}
 
-      actions = [
-        "vpc-lattice-svcs:Invoke"
-      ]
+resource "aws_security_group" "clients_ecs" {
+  name   = "${local.name}-clients-ecs"
+  vpc_id = module.ecs_vpc.vpc_id
 
-      resources = ["*"]
-    }
+  ingress {
+    from_port = 80
+    to_port   = 80
+    protocol  = "tcp"
+
+    cidr_blocks = [
+      "0.0.0.0/0"
+    ]
+  }
+
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -143,8 +158,11 @@ resource "aws_ecs_service" "client_a" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  enable_execute_command = true
+
   network_configuration {
     subnets          = module.ecs_vpc.private_subnets
+    security_groups  = [aws_security_group.clients_ecs.id]
     assign_public_ip = false
   }
 }
@@ -156,8 +174,11 @@ resource "aws_ecs_service" "client_b" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  enable_execute_command = true
+
   network_configuration {
     subnets          = module.ecs_vpc.private_subnets
+    security_groups  = [aws_security_group.clients_ecs.id]
     assign_public_ip = false
   }
 }
@@ -289,20 +310,9 @@ module "ecs_task_role_orders_api" {
   }
 
   policies = {
-    "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-    "ecs_exec"      = aws_iam_policy.ecs_exec.arn
-  }
-
-  inline_policy_permissions = {
-    VpcLatticeInvoke = {
-      effect = "Allow"
-
-      actions = [
-        "vpc-lattice-svcs:Invoke"
-      ]
-
-      resources = ["*"]
-    }
+    "TaskExecution"      = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+    "ecs_exec"           = aws_iam_policy.ecs_exec.arn
+    "vpc_lattice_invoke" = aws_iam_policy.vpc_lattice_invoke.arn
   }
 }
 
@@ -351,6 +361,25 @@ resource "aws_iam_policy" "ecs_exec" {
           "ec2messages:CreateDataChannel",
           "ec2messages:OpenControlChannel",
           "ec2messages:OpenDataChannel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "vpc_lattice_invoke" {
+  name        = "vpc_lattice_invoke"
+  description = "Allow Invoking VPC Lattice Services"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ECSExecSSMMessages"
+        Effect = "Allow"
+        Action = [
+          "vpc-lattice-svcs:Invoke"
         ]
         Resource = "*"
       }

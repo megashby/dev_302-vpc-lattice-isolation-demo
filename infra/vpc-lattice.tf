@@ -87,8 +87,9 @@ resource "aws_vpclattice_target_group" "orders_api" {
 }
 
 resource "aws_vpclattice_service" "orders_api" {
-  name      = "orders-api"
-  auth_type = "AWS_IAM"
+  name = "orders-api"
+  #auth_type = "AWS_IAM"
+  auth_type = "NONE"
 }
 
 resource "aws_vpclattice_listener" "orders_api" {
