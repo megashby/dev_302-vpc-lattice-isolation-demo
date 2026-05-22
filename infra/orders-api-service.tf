@@ -214,6 +214,8 @@ resource "null_resource" "build_and_push_orders_api" {
   triggers = {
     index      = filemd5("../src/ecs/orders-api/index.html")
     dockerfile = filemd5("../src/ecs/orders-api/Dockerfile")
+    admin      = filemd5("../src/ecs/orders-api/admin/index.html")
+    public     = filemd5("../src/ecs/orders-api/public/index.html")
   }
 
   provisioner "local-exec" {
