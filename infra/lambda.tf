@@ -58,6 +58,15 @@ module "isolate_admin" {
       Resource = "*"
     }
   }
+
+  create_current_version_allowed_triggers = false
+
+  allowed_triggers = {
+    eventbridge = {
+      source_arn = aws_cloudwatch_event_rule.isolate_admin.arn
+      service = "events"
+    }
+  }
 }
 
 resource "aws_ecr_repository" "isolate_admin_lambda" {
