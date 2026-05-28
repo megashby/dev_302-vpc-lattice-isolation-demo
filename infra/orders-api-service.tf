@@ -183,6 +183,35 @@ resource "aws_vpclattice_listener" "orders_api" {
   }
 }
 
+resource "aws_vpclattice_listener_rule" "admin_route" {
+  name = "admin"
+
+  listener_identifier = aws_vpclattice_listener.orders_api.arn
+  service_identifier  = aws_vpclattice_service.orders_api.id
+
+  priority = 10
+
+  match {
+    http_match {
+      path_match {
+        match {
+          prefix = "/admin"
+        }
+      }
+    }
+  }
+
+  action {
+    forward {
+      target_groups {
+        # target_group_identifier = aws_vpclattice_target_group.orders_api.id
+        target_group_identifier = aws_vpclattice_target_group.maintenance.id
+        weight                  = 100
+      }
+    }
+  }
+}
+
 resource "aws_vpclattice_service_network_service_association" "orders_api" {
   service_identifier         = aws_vpclattice_service.orders_api.id
   service_network_identifier = aws_vpclattice_service_network.this.id
@@ -229,3 +258,4 @@ resource "null_resource" "build_and_push_orders_api" {
     EOT
   }
 }
+

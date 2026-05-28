@@ -67,38 +67,6 @@ resource "aws_security_group" "maintenance_ecs" {
   }
 }
 
-resource "aws_ecs_service" "maintenance" {
-  name                   = "maintenance"
-  cluster                = module.ecs_cluster.cluster_id
-  task_definition        = aws_ecs_task_definition.maintenance.arn
-  desired_count          = 1
-  launch_type            = "FARGATE"
-  enable_execute_command = true
-
-  deployment_minimum_healthy_percent = 0
-  deployment_maximum_percent         = 200
-
-  platform_version = "LATEST"
-
-  network_configuration {
-    subnets          = module.ecs_vpc.private_subnets
-    security_groups  = [aws_security_group.maintenance_ecs.id]
-    assign_public_ip = false
-  }
-
-  vpc_lattice_configurations {
-    role_arn = module.db_proxy_ecs_infra_role.arn
-
-    target_group_arn = aws_vpclattice_target_group.maintenance.arn
-
-    port_name = "maintenance"
-  }
-
-  depends_on = [
-    aws_vpclattice_target_group.maintenance
-  ]
-}
-
 module "ecs_task_role_maintenance" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role"
   version = "~> 6.0"
@@ -127,10 +95,6 @@ module "ecs_task_role_maintenance" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "maintenance" {
-  name = "/ecs/demo-lattice-maintenance"
-}
-
 resource "aws_vpclattice_target_group" "maintenance" {
   name = "maintenance"
   type = "IP"
@@ -157,48 +121,14 @@ resource "aws_vpclattice_target_group" "maintenance" {
   }
 }
 
+resource "aws_cloudwatch_log_group" "maintenance" {
+  name = "/ecs/demo-lattice-maintenance"
+}
+
 resource "aws_vpclattice_service" "maintenance" {
   name = "maintenance"
   #auth_type = "AWS_IAM"
   auth_type = "NONE"
-}
-
-resource "aws_vpclattice_listener" "maintenance" {
-  service_identifier = aws_vpclattice_service.maintenance.id
-  name               = "http"
-  protocol           = "HTTP"
-  port               = 80
-
-  default_action {
-    forward {
-      target_groups {
-        target_group_identifier = aws_vpclattice_target_group.maintenance.id
-        weight                  = 100
-      }
-    }
-  }
-}
-
-resource "aws_vpclattice_service_network_service_association" "maintenance" {
-  service_identifier         = aws_vpclattice_service.maintenance.id
-  service_network_identifier = aws_vpclattice_service_network.this.id
-}
-
-resource "aws_vpclattice_auth_policy" "maintenance_normal" {
-  resource_identifier = aws_vpclattice_service.maintenance.arn
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowInvoke"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "vpc-lattice-svcs:Invoke"
-        Resource  = "*"
-      }
-    ]
-  })
 }
 
 resource "aws_ecr_repository" "maintenance" {
