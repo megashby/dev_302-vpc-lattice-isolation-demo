@@ -204,8 +204,8 @@ resource "aws_vpclattice_listener_rule" "admin_route" {
   action {
     forward {
       target_groups {
-        # target_group_identifier = aws_vpclattice_target_group.orders_api.id
-        target_group_identifier = aws_vpclattice_target_group.maintenance.id
+        target_group_identifier = aws_vpclattice_target_group.orders_api.id
+        #target_group_identifier = aws_vpclattice_target_group.maintenance.id
         weight                  = 100
       }
     }
