@@ -36,18 +36,18 @@ module "isolate_admin" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "~> 7.0"
 
-  function_name = "${local.name}-isolate-admin"
+  function_name  = "${local.name}-isolate-admin"
   create_package = false
-  package_type = "Image"
+  package_type   = "Image"
 
   architectures = ["x86_64"]
 
   image_uri = "${aws_ecr_repository.isolate_admin_lambda.repository_url}:latest"
 
   environment_variables = {
-    LISTENER_ID       = aws_vpclattice_listener.orders_api.listener_id
-    SERVICE_ID        = aws_vpclattice_service.orders_api.id
-    RULE_ID           = aws_vpclattice_listener_rule.admin_route.rule_id
+    LISTENER_ID        = aws_vpclattice_listener.orders_api.listener_id
+    SERVICE_ID         = aws_vpclattice_service.orders_api.id
+    RULE_ID            = aws_vpclattice_listener_rule.admin_route.rule_id
     MAINTENANCE_TG_ARN = aws_vpclattice_target_group.maintenance.arn
   }
 
@@ -64,7 +64,7 @@ module "isolate_admin" {
   allowed_triggers = {
     eventbridge = {
       source_arn = aws_cloudwatch_event_rule.isolate_admin.arn
-      service = "events"
+      service    = "events"
     }
   }
 }
@@ -76,7 +76,7 @@ resource "aws_ecr_repository" "isolate_admin_lambda" {
 resource "null_resource" "build_and_push_isolate_admin" {
 
   triggers = {
-    index = filemd5("../src/lambda/isolate-admin/index.py")
+    index      = filemd5("../src/lambda/isolate-admin/index.py")
     dockerfile = filemd5("../src/lambda/isolate-admin/Dockerfile")
   }
 
