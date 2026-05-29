@@ -112,23 +112,49 @@ resource "aws_vpclattice_target_group" "maintenance" {
       path             = "/"
       port             = 80
 
-      health_check_interval_seconds = 30
-      health_check_timeout_seconds  = 10
+      #health_check_interval_seconds = 30
+      health_check_timeout_seconds = 3
 
-      healthy_threshold_count   = 3
-      unhealthy_threshold_count = 3
+      #healthy_threshold_count   = 3
+      #unhealthy_threshold_count = 3
+
+      health_check_interval_seconds = 6
+      healthy_threshold_count       = 2
+      unhealthy_threshold_count     = 2
     }
+  }
+}
+
+resource "aws_ecs_service" "maintenance" {
+  name                   = "maintenance"
+  cluster                = module.ecs_cluster.cluster_id
+  task_definition        = aws_ecs_task_definition.maintenance.arn
+  desired_count          = 1
+  launch_type            = "FARGATE"
+  enable_execute_command = true
+
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 200
+
+  platform_version = "LATEST"
+
+  network_configuration {
+    subnets          = module.ecs_vpc.private_subnets
+    security_groups  = [aws_security_group.maintenance_ecs.id]
+    assign_public_ip = false
+  }
+
+  vpc_lattice_configurations {
+    role_arn = module.db_proxy_ecs_infra_role.arn
+
+    target_group_arn = aws_vpclattice_target_group.maintenance.arn
+
+    port_name = "maintenance"
   }
 }
 
 resource "aws_cloudwatch_log_group" "maintenance" {
   name = "/ecs/demo-lattice-maintenance"
-}
-
-resource "aws_vpclattice_service" "maintenance" {
-  name = "maintenance"
-  #auth_type = "AWS_IAM"
-  auth_type = "NONE"
 }
 
 resource "aws_ecr_repository" "maintenance" {
@@ -140,6 +166,7 @@ resource "null_resource" "build_and_push_maintenance" {
   triggers = {
     index      = filemd5("../src/ecs/maintenance/index.html")
     dockerfile = filemd5("../src/ecs/maintenance/Dockerfile")
+    conf       = filemd5("../src/ecs/maintenance/default.conf")
   }
 
   provisioner "local-exec" {

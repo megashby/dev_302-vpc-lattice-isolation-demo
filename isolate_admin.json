@@ -1,0 +1,7 @@
+[
+  {
+    "Source": "demo.isolate_admin",
+    "DetailType": "GuardDuty Finding",
+    "Detail": "{\"severity\":\"high\",\"service\":\"orders-api\"}"
+  }
+]
