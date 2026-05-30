@@ -223,36 +223,50 @@ resource "aws_vpclattice_listener_rule" "admin_route" {
   }
 }
 
+resource "aws_vpclattice_listener_rule" "public_route" {
+  name = "public"
+
+  listener_identifier = aws_vpclattice_listener.orders_api.arn
+  service_identifier  = aws_vpclattice_service.orders_api.id
+
+  priority = 20
+
+  match {
+    http_match {
+      path_match {
+        match {
+          prefix = "/public/"
+        }
+      }
+    }
+  }
+
+  action {
+    forward {
+      target_groups {
+        target_group_identifier = aws_vpclattice_target_group.orders_api.id
+        weight                  = 100
+      }
+    }
+  }
+}
+
 resource "aws_vpclattice_service_network_service_association" "orders_api" {
   service_identifier         = aws_vpclattice_service.orders_api.id
   service_network_identifier = aws_vpclattice_service_network.this.id
 }
 
 resource "aws_vpclattice_auth_policy" "orders_api_normal" {
-
   resource_identifier = aws_vpclattice_service.orders_api.arn
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowClientA"
+        Sid    = "AllowAllForDebug"
         Effect = "Allow"
 
-        Principal = {
-          AWS = module.ecs_task_role_client_a.arn
-        }
-
-        Action   = "vpc-lattice-svcs:Invoke"
-        Resource = "*"
-      },
-      {
-        Sid    = "AllowClientB"
-        Effect = "Allow"
-
-        Principal = {
-          AWS = module.ecs_task_role_client_b.arn
-        }
+        Principal = "*"
 
         Action   = "vpc-lattice-svcs:Invoke"
         Resource = "*"
@@ -260,6 +274,7 @@ resource "aws_vpclattice_auth_policy" "orders_api_normal" {
     ]
   })
 }
+
 
 resource "aws_ecr_repository" "orders_api" {
   name = "${local.name}-orders-api"

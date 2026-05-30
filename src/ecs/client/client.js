@@ -1,78 +1,87 @@
-const https = require("https");
+const http = require("http");
 const { defaultProvider } = require("@aws-sdk/credential-provider-node");
-const { SignatureV4 } = require("@aws-sdk/signature-v4");
-const { HttpRequest } = require("@aws-sdk/protocol-http");
+const { SignatureV4 } = require("@smithy/signature-v4");
 const { Sha256 } = require("@aws-crypto/sha256-js");
+const { HttpRequest } = require("@smithy/protocol-http");
 const { STSClient, GetCallerIdentityCommand } = require("@aws-sdk/client-sts");
 
 const endpoint = process.env.LATTICE_ENDPOINT;
-const region = process.env.AWS_REGION || "us-east-1";
 
-console.log("endpoint:", endpoint);
-console.log("region:", region);
-
-const signer = new SignatureV4({
-  credentials: defaultProvider(),
-  region,
-  service: "vpc-lattice-svcs",
-  sha256: Sha256,
-});
-
-const sts = new STSClient({ region });
-
-async function logIdentity() {
+async function getIdentity() {
   try {
-    const res = await sts.send(new GetCallerIdentityCommand({}));
-    console.log("identity:", res.Arn || res.UserId || res);
-  } catch (e) {
-    console.error("identity error:", e);
+    const sts = new STSClient({ region: "us-east-1" });
+    const identity = await sts.send(new GetCallerIdentityCommand({}));
+
+    console.log("STS identity ARN:", identity.Arn);
+  } catch (err) {
+    console.error("STS identity lookup failed:", err);
   }
 }
 
-async function call() {
+async function makeRequest() {
   try {
-    await logIdentity();
+    await getIdentity();
+
+    const credentials = await defaultProvider()();
+
+    const signer = new SignatureV4({
+      credentials,
+      region: "us-east-1",
+      service: "vpc-lattice-svcs",
+      sha256: Sha256,
+    });
 
     const request = new HttpRequest({
-      method: "GET",
-      protocol: "https:",
+      protocol: "http:",
       hostname: endpoint,
-      path: "/public/",   // MUST match your service exactly
+      method: "GET",
+      path: "/public/",
       headers: {
         host: endpoint,
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
       },
     });
 
     const signedRequest = await signer.sign(request);
 
-    console.log("signed headers keys:", Object.keys(signedRequest.headers));
-
-    console.log("AUTH HEADER:", signedRequest.headers["authorization"]);
+    console.log("---- REQUEST ----");
+    console.log("path:", request.path);
+    console.log("host:", endpoint);
+    console.log(
+      "auth header exists:",
+      !!signedRequest.headers.authorization
+    );
 
     const options = {
-      hostname: signedRequest.hostname,
-      path: signedRequest.path,
-      method: signedRequest.method,
+      hostname: endpoint,
+      port: 80,
+      path: "/public/",
+      method: "GET",
       headers: signedRequest.headers,
     };
 
-    const req = https.request(options, (res) => {
+    const req = http.request(options, (res) => {
       let body = "";
 
-      res.on("data", (chunk) => (body += chunk));
+      res.on("data", (chunk) => {
+        body += chunk;
+      });
 
       res.on("end", () => {
-        console.log("client status:", res.statusCode);
-        if (body) console.log("body:", body);
+        console.log("status:", res.statusCode);
+        console.log("body:", body);
       });
     });
 
-    req.on("error", (e) => console.error("request error:", e.message));
+    req.on("error", (err) => {
+      console.error("request error:", err.message);
+    });
 
     req.end();
   } catch (err) {
-    console.error("call error:", err);
+    console.error("client error:", err);
   }
 }
 
-setInterval(call, 5000);
+setInterval(makeRequest, 10000);
+makeRequest();

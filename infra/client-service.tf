@@ -133,15 +133,13 @@ resource "aws_ecs_task_definition" "client_a" {
       environment = [
         {
           name  = "LATTICE_ENDPOINT"
-          value = aws_vpclattice_service.proxy.dns_entry[0].domain_name
+          value = aws_vpclattice_service.orders_api.dns_entry[0].domain_name
         },
         {
           name  = "CLIENT_NAME"
           value = "client-a"
         }
       ]
-
-      #  command = ["node", "-e", file("../src/ecs/client/client.js")]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -177,7 +175,7 @@ resource "aws_ecs_task_definition" "client_b" {
       environment = [
         {
           name  = "LATTICE_ENDPOINT"
-          value = aws_vpclattice_service.proxy.dns_entry[0].domain_name
+          value = aws_vpclattice_service.orders_api.dns_entry[0].domain_name
         },
         {
           name  = "CLIENT_NAME"
