@@ -173,9 +173,9 @@ resource "aws_vpclattice_target_group" "orders_api" {
 }
 
 resource "aws_vpclattice_service" "orders_api" {
-  name = "orders-api"
-  #auth_type = "AWS_IAM"
-  auth_type = "NONE"
+  name      = "orders-api"
+  auth_type = "AWS_IAM"
+  #auth_type = "NONE"
 }
 
 resource "aws_vpclattice_listener" "orders_api" {
@@ -223,6 +223,34 @@ resource "aws_vpclattice_listener_rule" "admin_route" {
   }
 }
 
+resource "aws_vpclattice_listener_rule" "public_route" {
+  name = "public"
+
+  listener_identifier = aws_vpclattice_listener.orders_api.arn
+  service_identifier  = aws_vpclattice_service.orders_api.id
+
+  priority = 20
+
+  match {
+    http_match {
+      path_match {
+        match {
+          prefix = "/public/"
+        }
+      }
+    }
+  }
+
+  action {
+    forward {
+      target_groups {
+        target_group_identifier = aws_vpclattice_target_group.orders_api.id
+        weight                  = 100
+      }
+    }
+  }
+}
+
 resource "aws_vpclattice_service_network_service_association" "orders_api" {
   service_identifier         = aws_vpclattice_service.orders_api.id
   service_network_identifier = aws_vpclattice_service_network.this.id
@@ -235,15 +263,18 @@ resource "aws_vpclattice_auth_policy" "orders_api_normal" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "AllowInvoke"
-        Effect    = "Allow"
+        Sid    = "AllowAllForDebug"
+        Effect = "Allow"
+
         Principal = "*"
-        Action    = "vpc-lattice-svcs:Invoke"
-        Resource  = "*"
+
+        Action   = "vpc-lattice-svcs:Invoke"
+        Resource = "*"
       }
     ]
   })
 }
+
 
 resource "aws_ecr_repository" "orders_api" {
   name = "${local.name}-orders-api"

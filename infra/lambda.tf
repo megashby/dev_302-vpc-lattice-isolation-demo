@@ -13,12 +13,12 @@ module "isolate_admin" {
   timeout = 180
 
   environment_variables = {
-    LISTENER_ID        = aws_vpclattice_listener.orders_api.listener_id
-    SERVICE_ID         = aws_vpclattice_service.orders_api.id
-    RULE_ID            = aws_vpclattice_listener_rule.admin_route.rule_id
+    LISTENER_ID       = aws_vpclattice_listener.orders_api.listener_id
+    SERVICE_ID        = aws_vpclattice_service.orders_api.id
+    RULE_ID           = aws_vpclattice_listener_rule.admin_route.rule_id
     MAINTENANCE_TG_ID = aws_vpclattice_target_group.maintenance.id
-    CLUSTER_NAME       = module.ecs_cluster.cluster_name
-    SERVICE_NAME       = aws_ecs_service.orders_api.name
+    CLUSTER_NAME      = module.ecs_cluster.cluster_name
+    SERVICE_NAME      = aws_ecs_service.orders_api.name
   }
 
   attach_policy_statements = true
