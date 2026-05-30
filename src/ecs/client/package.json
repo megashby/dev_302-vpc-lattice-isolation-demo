@@ -1,0 +1,11 @@
+{
+  "name": "lattice-client",
+  "version": "1.0.0",
+  "dependencies": {
+    "@aws-sdk/credential-provider-node": "^3.900.0",
+    "@aws-sdk/signature-v4": "^3.900.0",
+    "@aws-sdk/protocol-http": "^3.900.0",
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-sts": "^3.900.0"
+  }
+}
