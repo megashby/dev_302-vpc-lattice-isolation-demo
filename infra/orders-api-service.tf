@@ -173,9 +173,9 @@ resource "aws_vpclattice_target_group" "orders_api" {
 }
 
 resource "aws_vpclattice_service" "orders_api" {
-  name = "orders-api"
-  #auth_type = "AWS_IAM"
-  auth_type = "NONE"
+  name      = "orders-api"
+  auth_type = "AWS_IAM"
+  #auth_type = "NONE"
 }
 
 resource "aws_vpclattice_listener" "orders_api" {
@@ -229,17 +229,33 @@ resource "aws_vpclattice_service_network_service_association" "orders_api" {
 }
 
 resource "aws_vpclattice_auth_policy" "orders_api_normal" {
+
   resource_identifier = aws_vpclattice_service.orders_api.arn
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "AllowInvoke"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "vpc-lattice-svcs:Invoke"
-        Resource  = "*"
+        Sid    = "AllowClientA"
+        Effect = "Allow"
+
+        Principal = {
+          AWS = module.ecs_task_role_client_a.arn
+        }
+
+        Action   = "vpc-lattice-svcs:Invoke"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowClientB"
+        Effect = "Allow"
+
+        Principal = {
+          AWS = module.ecs_task_role_client_b.arn
+        }
+
+        Action   = "vpc-lattice-svcs:Invoke"
+        Resource = "*"
       }
     ]
   })
