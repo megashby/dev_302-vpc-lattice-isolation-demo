@@ -82,3 +82,68 @@ resource "null_resource" "build_and_push_isolate_admin" {
     EOT
   }
 }
+
+module "apply_auth" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "~> 7.0"
+
+  function_name  = "${local.name}-apply-auth"
+  create_package = false
+  package_type   = "Image"
+
+  architectures = ["x86_64"]
+
+  image_uri = "${aws_ecr_repository.apply_auth_lambda.repository_url}:latest"
+
+  timeout = 60
+
+  environment_variables = {
+    SERVICE_ARN       = aws_vpclattice_service.orders_api.arn
+    CLIENT_A_ROLE_ARN = module.ecs_task_role_client_a.arn
+    CLIENT_B_ROLE_ARN = module.ecs_task_role_client_b.arn
+  }
+
+  attach_policy_statements = true
+
+  policy_statements = {
+    lattice_auth_policy = {
+      effect = "Allow"
+      actions = [
+        "vpc-lattice:PutAuthPolicy",
+        "vpc-lattice:GetAuthPolicy"
+      ]
+      resources = ["*"]
+    }
+  }
+
+    create_current_version_allowed_triggers = false
+
+  allowed_triggers = {
+    eventbridge = {
+      source_arn = aws_cloudwatch_event_rule.apply_auth.arn
+      service    = "events"
+    }
+  }
+}
+
+resource "aws_ecr_repository" "apply_auth_lambda" {
+  name = "${local.name}-apply-auth"
+}
+
+resource "null_resource" "build_and_push_apply_auth" {
+  triggers = {
+    index      = filemd5("../src/lambda/apply-auth/index.py")
+    dockerfile = filemd5("../src/lambda/apply-auth/Dockerfile")
+  }
+
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr get-login-password --region us-east-1 \
+      | docker login --username AWS --password-stdin ${aws_ecr_repository.apply_auth_lambda.repository_url}
+
+      docker build --platform linux/amd64 --provenance=false -t apply-auth ../src/lambda/apply-auth
+      docker tag apply-auth:latest ${aws_ecr_repository.apply_auth_lambda.repository_url}:latest
+      docker push ${aws_ecr_repository.apply_auth_lambda.repository_url}:latest
+    EOT
+  }
+}
