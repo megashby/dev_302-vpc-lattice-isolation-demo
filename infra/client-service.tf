@@ -9,7 +9,7 @@ module "ecs_execution_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role"
   version = "~> 6.0"
 
-  name = "${local.name}-ecs-exec-role"
+  name            = "${local.name}-ecs-exec-role"
   use_name_prefix = false
 
   create = true
@@ -36,7 +36,7 @@ module "ecs_task_role_client_a" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role"
   version = "~> 6.0"
 
-  name = "${local.name}-ecs-task-role-client-a"
+  name            = "${local.name}-ecs-task-role-client-a"
   use_name_prefix = false
 
   create = true
@@ -51,7 +51,12 @@ module "ecs_task_role_client_a" {
         identifiers = [
           "ecs-tasks.amazonaws.com",
         ]
-      }]
+        },
+        {
+          type        = "AWS"
+          identifiers = [module.ecs_task_role_dashboard.arn]
+        }
+      ]
     }
   }
 
@@ -65,7 +70,7 @@ module "ecs_task_role_client_b" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role"
   version = "~> 6.0"
 
-  name = "${local.name}-ecs-task-role-client-b"
+  name            = "${local.name}-ecs-task-role-client-b"
   use_name_prefix = false
 
   create = true
@@ -80,7 +85,12 @@ module "ecs_task_role_client_b" {
         identifiers = [
           "ecs-tasks.amazonaws.com",
         ]
-      }]
+        },
+        {
+          type        = "AWS"
+          identifiers = [module.ecs_task_role_dashboard.arn]
+        }
+      ]
     }
   }
 

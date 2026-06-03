@@ -71,9 +71,9 @@ module "ecs_task_role_maintenance" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role"
   version = "~> 6.0"
 
-  name   = "ecs-task-role-maintenance"
+  name            = "ecs-task-role-maintenance"
   use_name_prefix = false
-  create = true
+  create          = true
 
   trust_policy_permissions = {
     TrustRoleAndServiceToAssume = {
