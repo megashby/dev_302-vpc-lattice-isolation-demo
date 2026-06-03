@@ -1,4 +1,4 @@
- resource "aws_iam_role" "isolation_sfn" {
+resource "aws_iam_role" "isolation_sfn" {
   name = "${local.name}-isolation-sfn-role"
 
   assume_role_policy = jsonencode({
@@ -28,7 +28,8 @@ resource "aws_iam_policy" "isolation_sfn" {
         ]
         Resource = [
           module.apply_auth.lambda_function_arn,
-          module.isolate_admin.lambda_function_arn
+          module.isolate_admin.lambda_function_arn,
+          module.isolation_router.lambda_function_arn,
         ]
       }
     ]
@@ -41,14 +42,21 @@ resource "aws_iam_role_policy_attachment" "isolation_sfn" {
 }
 
 resource "aws_sfn_state_machine" "isolation_workflow" {
-  name     = "${local.name}-admin-isolation-workflow"
+  name     = "${local.name}-isolation-workflow"
   role_arn = aws_iam_role.isolation_sfn.arn
 
   definition = jsonencode({
-    Comment = "Conditional VPC Lattice admin isolation workflow"
-    StartAt = "ShouldApplyAuth"
+    Comment = "Route detection events to VPC Lattice isolation actions"
+    StartAt = "RouteEvent"
 
     States = {
+      RouteEvent = {
+        Type       = "Task"
+        Resource   = module.isolation_router.lambda_function_arn
+        ResultPath = "$"
+        Next       = "ShouldApplyAuth"
+      }
+
       ShouldApplyAuth = {
         Type = "Choice"
         Choices = [
@@ -62,9 +70,10 @@ resource "aws_sfn_state_machine" "isolation_workflow" {
       }
 
       ApplyAuthPolicy = {
-        Type     = "Task"
-        Resource = module.apply_auth.lambda_function_arn
-        Next     = "ShouldShiftRoute"
+        Type       = "Task"
+        Resource   = module.apply_auth.lambda_function_arn
+        ResultPath = "$.applyAuthResult"
+        Next       = "ShouldShiftRoute"
       }
 
       ShouldShiftRoute = {
@@ -80,9 +89,10 @@ resource "aws_sfn_state_machine" "isolation_workflow" {
       }
 
       ShiftAdminRoute = {
-        Type     = "Task"
-        Resource = module.isolate_admin.lambda_function_arn
-        Next     = "Done"
+        Type       = "Task"
+        Resource   = module.isolate_admin.lambda_function_arn
+        ResultPath = "$.shiftRouteResult"
+        Next       = "Done"
       }
 
       Done = {

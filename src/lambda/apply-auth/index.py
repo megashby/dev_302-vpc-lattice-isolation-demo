@@ -8,9 +8,13 @@ vpclattice = boto3.client("vpc-lattice")
 def lambda_handler(event, context):
     service_arn = os.environ["SERVICE_ARN"]
 
-    blocked_arn = event.get("detail", {}).get("blockedArn")
+    blocked_arn = (
+        event.get("blockedArn")
+        or event.get("detail", {}).get("blockedArn")
+    )
+
     if not blocked_arn:
-        raise ValueError("Missing detail.blockedArn")
+        raise ValueError("Missing blockedArn")
 
     policy = {
         "Version": "2012-10-17",
@@ -25,7 +29,7 @@ def lambda_handler(event, context):
                 "Resource": "*"
             },
             {
-                "Sid": "AllowOtherAuthorizedPrincipals",
+                "Sid": "AllowAllOtherPrincipals",
                 "Effect": "Allow",
                 "Principal": {
                     "AWS": "*"
