@@ -10,6 +10,7 @@ module "ecs_execution_role" {
   version = "~> 6.0"
 
   name = "${local.name}-ecs-exec-role"
+  use_name_prefix = false
 
   create = true
 
@@ -36,6 +37,7 @@ module "ecs_task_role_client_a" {
   version = "~> 6.0"
 
   name = "${local.name}-ecs-task-role-client-a"
+  use_name_prefix = false
 
   create = true
 
@@ -57,7 +59,6 @@ module "ecs_task_role_client_a" {
     "TaskExecution" = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
     "ecs_exec"      = aws_iam_policy.ecs_exec.arn
   "vpc_lattice_invoke" = aws_iam_policy.vpc_lattice_invoke.arn }
-
 }
 
 module "ecs_task_role_client_b" {
@@ -65,6 +66,7 @@ module "ecs_task_role_client_b" {
   version = "~> 6.0"
 
   name = "${local.name}-ecs-task-role-client-b"
+  use_name_prefix = false
 
   create = true
 

@@ -1,0 +1,5 @@
+[{
+  "Source": "demo.apply_auth",
+  "DetailType": "ApplyAuthPolicy",
+  "Detail": "{\"blockedArn\":\"arn:aws:iam::222441492902:role/demo-lattice-ecs-task-role-client-b\"}"
+}]

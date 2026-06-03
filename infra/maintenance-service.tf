@@ -72,6 +72,7 @@ module "ecs_task_role_maintenance" {
   version = "~> 6.0"
 
   name   = "ecs-task-role-maintenance"
+  use_name_prefix = false
   create = true
 
   trust_policy_permissions = {
