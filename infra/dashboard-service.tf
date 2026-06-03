@@ -75,6 +75,27 @@ resource "aws_iam_role_policy_attachment" "dashboard_assume_clients" {
   policy_arn = aws_iam_policy.dashboard_assume_clients.arn
 }
 
+resource "aws_iam_policy" "dashboard_read_logs" {
+  name = "${local.name}-dashboard-read-logs"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:FilterLogEvents",
+        "logs:DescribeLogStreams"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "dashboard_read_logs" {
+  role       = module.ecs_task_role_dashboard.name
+  policy_arn = aws_iam_policy.dashboard_read_logs.arn
+}
+
 resource "aws_security_group" "dashboard_alb" {
   name   = "${local.name}-dashboard-alb"
   vpc_id = module.ecs_vpc.vpc_id
@@ -197,6 +218,26 @@ resource "aws_ecs_task_definition" "dashboard" {
         {
           name  = "CLIENT_B_ROLE_ARN"
           value = module.ecs_task_role_client_b.arn
+        },
+        {
+            name  = "ROUTER_LOG_GROUP"
+            value = "/aws/lambda/${local.name}-isolation-router"
+        },
+        {
+            name  = "APPLY_AUTH_LOG_GROUP"
+            value = "/aws/lambda/${local.name}-apply-auth"
+        },
+        {
+            name  = "ISOLATE_ADMIN_LOG_GROUP"
+            value = "/aws/lambda/${local.name}-isolate-admin"
+        },
+        {
+            name  = "CLIENT_A_LOG_GROUP"
+            value = "/ecs/${local.name}-client-a"
+        },
+        {
+            name  = "CLIENT_B_LOG_GROUP"
+            value = "/ecs/${local.name}-client-b"
         }
       ]
 

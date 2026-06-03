@@ -1,5 +1,9 @@
 const http = require("http");
 const { STSClient, AssumeRoleCommand } = require("@aws-sdk/client-sts");
+const {
+  CloudWatchLogsClient,
+  FilterLogEventsCommand
+} = require("@aws-sdk/client-cloudwatch-logs");
 const { SignatureV4 } = require("@smithy/signature-v4");
 const { Sha256 } = require("@aws-crypto/sha256-js");
 const { HttpRequest } = require("@smithy/protocol-http");
@@ -9,13 +13,17 @@ const endpoint = process.env.LATTICE_ENDPOINT;
 const clientARoleArn = process.env.CLIENT_A_ROLE_ARN;
 const clientBRoleArn = process.env.CLIENT_B_ROLE_ARN;
 
+const logs = new CloudWatchLogsClient({ region });
+
 async function assume(roleArn, name) {
   const sts = new STSClient({ region });
 
-  const res = await sts.send(new AssumeRoleCommand({
-    RoleArn: roleArn,
-    RoleSessionName: `dashboard-${name}`
-  }));
+  const res = await sts.send(
+    new AssumeRoleCommand({
+      RoleArn: roleArn,
+      RoleSessionName: `dashboard-${name}`
+    })
+  );
 
   return {
     accessKeyId: res.Credentials.AccessKeyId,
@@ -49,31 +57,38 @@ async function callAs(roleArn, name, path) {
     const signed = await signer.sign(request);
 
     return await new Promise((resolve) => {
-      const req = http.request({
-        hostname: endpoint,
-        port: 80,
-        path,
-        method: "GET",
-        headers: signed.headers
-      }, (res) => {
-        let body = "";
+      const req = http.request(
+        {
+          hostname: endpoint,
+          port: 80,
+          path,
+          method: "GET",
+          headers: signed.headers
+        },
+        (res) => {
+          let body = "";
 
-        res.on("data", chunk => body += chunk);
-
-        res.on("end", () => {
-          resolve({
-            status: res.statusCode,
-            ok: res.statusCode >= 200 && res.statusCode < 300,
-            body
+          res.on("data", (chunk) => {
+            body += chunk;
           });
-        });
-      });
 
-      req.on("error", err => resolve({
-        status: "ERR",
-        ok: false,
-        body: err.message
-      }));
+          res.on("end", () => {
+            resolve({
+              status: res.statusCode,
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              body
+            });
+          });
+        }
+      );
+
+      req.on("error", (err) =>
+        resolve({
+          status: "ERR",
+          ok: false,
+          body: err.message
+        })
+      );
 
       req.end();
     });
@@ -84,6 +99,39 @@ async function callAs(roleArn, name, path) {
       body: err.message
     };
   }
+}
+
+async function getRecentLogs(logGroupName, minutes = 10) {
+  if (!logGroupName) return "log group not configured";
+
+  try {
+    const res = await logs.send(
+      new FilterLogEventsCommand({
+        logGroupName,
+        startTime: Date.now() - minutes * 60 * 1000,
+        limit: 25,
+        interleaved: true
+      })
+    );
+
+    const output = (res.events || [])
+      .map((e) => `${new Date(e.timestamp).toISOString()} ${e.message}`)
+      .join("\n");
+
+    return output || "no recent logs";
+  } catch (err) {
+    return `error reading logs from ${logGroupName}: ${err.message}`;
+  }
+}
+
+function escapeHtml(str = "") {
+  return String(str).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#039;"
+  }[c]));
 }
 
 function classify(path, result) {
@@ -147,17 +195,41 @@ function card(clientName, path, result) {
       <h2>${state.label}</h2>
       <div class="path">${path}</div>
       <div class="status">HTTP ${result.status}</div>
-      <p>${state.detail}</p>
+      <p>${escapeHtml(state.detail)}</p>
     </div>
   `;
 }
 
+function logSection(title, logs) {
+  return `
+    <details class="logs">
+      <summary>${title}</summary>
+      <pre>${escapeHtml(logs)}</pre>
+    </details>
+  `;
+}
+
 async function render() {
-  const [aPublic, aAdmin, bPublic, bAdmin] = await Promise.all([
+  const [
+    aPublic,
+    aAdmin,
+    bPublic,
+    bAdmin,
+    routerLogs,
+    applyAuthLogs,
+    isolateAdminLogs,
+    clientALogs,
+    clientBLogs
+  ] = await Promise.all([
     callAs(clientARoleArn, "client-a-public", "/public/"),
     callAs(clientARoleArn, "client-a-admin", "/admin/"),
     callAs(clientBRoleArn, "client-b-public", "/public/"),
-    callAs(clientBRoleArn, "client-b-admin", "/admin/")
+    callAs(clientBRoleArn, "client-b-admin", "/admin/"),
+    getRecentLogs(process.env.ROUTER_LOG_GROUP),
+    getRecentLogs(process.env.APPLY_AUTH_LOG_GROUP),
+    getRecentLogs(process.env.ISOLATE_ADMIN_LOG_GROUP),
+    getRecentLogs(process.env.CLIENT_A_LOG_GROUP),
+    getRecentLogs(process.env.CLIENT_B_LOG_GROUP)
   ]);
 
   return `
@@ -246,6 +318,35 @@ async function render() {
       margin:0;
       line-height:1.4;
     }
+
+    .log-grid {
+      margin-top:32px;
+      display:grid;
+      grid-template-columns:1fr;
+      gap:12px;
+    }
+
+    .logs {
+      background:#020617;
+      border:1px solid #334155;
+      border-radius:12px;
+      padding:16px;
+    }
+
+    .logs summary {
+      cursor:pointer;
+      font-size:20px;
+      font-weight:bold;
+    }
+
+    .logs pre {
+      margin-top:12px;
+      white-space:pre-wrap;
+      color:#cbd5e1;
+      font-size:13px;
+      max-height:260px;
+      overflow:auto;
+    }
   </style>
 </head>
 <body>
@@ -257,6 +358,14 @@ async function render() {
     ${card("Client A", "/admin/", aAdmin)}
     ${card("Client B", "/public/", bPublic)}
     ${card("Client B", "/admin/", bAdmin)}
+  </div>
+
+  <div class="log-grid">
+    ${logSection("Router Lambda logs", routerLogs)}
+    ${logSection("ApplyAuth Lambda logs", applyAuthLogs)}
+    ${logSection("IsolateAdmin Lambda logs", isolateAdminLogs)}
+    ${logSection("Client A ECS logs", clientALogs)}
+    ${logSection("Client B ECS logs", clientBLogs)}
   </div>
 </body>
 </html>`;
