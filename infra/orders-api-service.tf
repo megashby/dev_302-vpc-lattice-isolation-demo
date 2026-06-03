@@ -114,6 +114,7 @@ module "ecs_task_role_orders_api" {
   version = "~> 6.0"
 
   name = "${local.name}-ecs-task-role-orders-api"
+  use_name_prefix = false
 
   create = true
 
