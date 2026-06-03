@@ -1,12 +1,18 @@
+locals {
+  dashboard_image_tag = substr(sha256(join("", [
+    filesha256("../src/ecs/dashboard/server.js"),
+    filesha256("../src/ecs/dashboard/Dockerfile"),
+    filesha256("../src/ecs/dashboard/package.json")
+  ])), 0, 16)
+}
+
 resource "aws_ecr_repository" "dashboard" {
   name = "${local.name}-dashboard"
 }
 
 resource "null_resource" "build_and_push_dashboard" {
   triggers = {
-    server_js  = filemd5("../src/ecs/dashboard/server.js")
-    dockerfile = filemd5("../src/ecs/dashboard/Dockerfile")
-    package    = filemd5("../src/ecs/dashboard/package.json")
+    image_tag = local.dashboard_image_tag
   }
 
   provisioner "local-exec" {
@@ -14,9 +20,11 @@ resource "null_resource" "build_and_push_dashboard" {
       aws ecr get-login-password --region us-east-1 \
       | docker login --username AWS --password-stdin ${aws_ecr_repository.dashboard.repository_url}
 
-      docker build --platform linux/amd64 --provenance=false -t dashboard ../src/ecs/dashboard
-      docker tag dashboard:latest ${aws_ecr_repository.dashboard.repository_url}:latest
-      docker push ${aws_ecr_repository.dashboard.repository_url}:latest
+      docker build --platform linux/amd64 --provenance=false \
+        -t ${aws_ecr_repository.dashboard.repository_url}:${local.dashboard_image_tag} \
+        ../src/ecs/dashboard
+
+      docker push ${aws_ecr_repository.dashboard.repository_url}:${local.dashboard_image_tag}
     EOT
   }
 }
@@ -162,7 +170,7 @@ resource "aws_ecs_task_definition" "dashboard" {
   container_definitions = jsonencode([
     {
       name      = "dashboard"
-      image     = "${aws_ecr_repository.dashboard.repository_url}:latest"
+      image     = "${aws_ecr_repository.dashboard.repository_url}:${local.dashboard_image_tag}"
       essential = true
 
       portMappings = [

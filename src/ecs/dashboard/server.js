@@ -11,6 +11,7 @@ const clientBRoleArn = process.env.CLIENT_B_ROLE_ARN;
 
 async function assume(roleArn, name) {
   const sts = new STSClient({ region });
+
   const res = await sts.send(new AssumeRoleCommand({
     RoleArn: roleArn,
     RoleSessionName: `dashboard-${name}`
@@ -56,12 +57,14 @@ async function callAs(roleArn, name, path) {
         headers: signed.headers
       }, (res) => {
         let body = "";
+
         res.on("data", chunk => body += chunk);
+
         res.on("end", () => {
           resolve({
             status: res.statusCode,
             ok: res.statusCode >= 200 && res.statusCode < 300,
-            body: body.slice(0, 180)
+            body
           });
         });
       });
@@ -75,37 +78,86 @@ async function callAs(roleArn, name, path) {
       req.end();
     });
   } catch (err) {
-    return { status: "ERR", ok: false, body: err.message };
+    return {
+      status: "ERR",
+      ok: false,
+      body: err.message
+    };
   }
 }
 
-function escapeHtml(str = "") {
-  return str.replace(/[&<>"']/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#039;"
-  }[c]));
+function classify(path, result) {
+  const body = (result.body || "").toLowerCase();
+
+  if (result.status === 403) {
+    return {
+      label: "ISOLATED",
+      detail: "VPC Lattice auth policy denied this client",
+      className: "bad"
+    };
+  }
+
+  if (result.status === "ERR") {
+    return {
+      label: "ERROR",
+      detail: result.body,
+      className: "bad"
+    };
+  }
+
+  if (path === "/admin/") {
+    if (body.includes("maintenance")) {
+      return {
+        label: "MAINTENANCE MODE",
+        detail: "Admin route shifted to maintenance target group",
+        className: "warn"
+      };
+    }
+
+    if (body.includes("admin")) {
+      return {
+        label: "ADMIN PAGE",
+        detail: "Admin route still points to primary service",
+        className: "ok"
+      };
+    }
+  }
+
+  if (result.ok) {
+    return {
+      label: "ALLOWED",
+      detail: "Request succeeded through VPC Lattice",
+      className: "ok"
+    };
+  }
+
+  return {
+    label: `${result.status}`,
+    detail: result.body.slice(0, 140),
+    className: "warn"
+  };
 }
 
-function card(name, path, result) {
-  const cls = result.ok ? "ok" : "bad";
+function card(clientName, path, result) {
+  const state = classify(path, result);
+
   return `
-    <div class="card ${cls}">
-      <h2>${name}</h2>
-      <p class="path">${path}</p>
-      <p class="status">${result.status}</p>
-      <pre>${escapeHtml(result.body)}</pre>
+    <div class="card ${state.className}">
+      <div class="eyebrow">${clientName}</div>
+      <h2>${state.label}</h2>
+      <div class="path">${path}</div>
+      <div class="status">HTTP ${result.status}</div>
+      <p>${state.detail}</p>
     </div>
   `;
 }
 
 async function render() {
-  const [aPublic, bPublic, aAdmin] = await Promise.all([
-    callAs(clientARoleArn, "client-a", "/public/"),
-    callAs(clientBRoleArn, "client-b", "/public/"),
-    callAs(clientARoleArn, "client-a-admin", "/admin/")
+  const [aPublic, aAdmin, bPublic, bAdmin] = await Promise.all([
+    callAs(clientARoleArn, "client-a-public", "/public/"),
+    callAs(clientARoleArn, "client-a-admin", "/admin/"),
+    callAs(clientBRoleArn, "client-b-public", "/public/"),
+    callAs(clientBRoleArn, "client-b-admin", "/admin/")
   ]);
 
   return `
@@ -115,25 +167,96 @@ async function render() {
   <meta http-equiv="refresh" content="5">
   <title>VPC Lattice Isolation Demo</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#111827; color:white; padding:40px; }
-    h1 { font-size:36px; margin-bottom:8px; }
-    .sub { color:#cbd5e1; margin-bottom:32px; }
-    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:24px; }
-    .card { border-radius:16px; padding:24px; min-height:220px; }
-    .ok { background:#064e3b; border:2px solid #34d399; }
-    .bad { background:#7f1d1d; border:2px solid #f87171; }
-    .path { color:#cbd5e1; font-size:18px; }
-    .status { font-size:64px; font-weight:bold; margin:16px 0; }
-    pre { white-space:pre-wrap; color:#e5e7eb; font-size:13px; max-height:90px; overflow:hidden; }
+    body {
+      font-family: Arial, sans-serif;
+      background:#0f172a;
+      color:white;
+      padding:40px;
+      margin:0;
+    }
+
+    h1 {
+      font-size:40px;
+      margin:0 0 8px 0;
+    }
+
+    .sub {
+      color:#cbd5e1;
+      margin-bottom:32px;
+      font-size:18px;
+    }
+
+    .grid {
+      display:grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap:24px;
+    }
+
+    .card {
+      border-radius:18px;
+      padding:28px;
+      min-height:230px;
+      box-shadow:0 12px 30px rgba(0,0,0,.25);
+    }
+
+    .ok {
+      background:#064e3b;
+      border:3px solid #34d399;
+    }
+
+    .bad {
+      background:#7f1d1d;
+      border:3px solid #f87171;
+    }
+
+    .warn {
+      background:#78350f;
+      border:3px solid #fbbf24;
+    }
+
+    .eyebrow {
+      color:#e5e7eb;
+      font-size:18px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:10px;
+    }
+
+    h2 {
+      font-size:44px;
+      margin:0 0 12px 0;
+    }
+
+    .path {
+      color:#cbd5e1;
+      font-size:22px;
+      margin-bottom:16px;
+      font-family: monospace;
+    }
+
+    .status {
+      font-size:28px;
+      font-weight:bold;
+      margin-bottom:14px;
+    }
+
+    p {
+      color:#e5e7eb;
+      font-size:18px;
+      margin:0;
+      line-height:1.4;
+    }
   </style>
 </head>
 <body>
   <h1>VPC Lattice Isolation Demo</h1>
-  <div class="sub">Signed requests through VPC Lattice. Auto-refreshes every 5 seconds.</div>
+  <div class="sub">Signed requests through VPC Lattice as Client A and Client B. Auto-refreshes every 5 seconds.</div>
+
   <div class="grid">
     ${card("Client A", "/public/", aPublic)}
+    ${card("Client A", "/admin/", aAdmin)}
     ${card("Client B", "/public/", bPublic)}
-    ${card("Admin Route", "/admin/", aAdmin)}
+    ${card("Client B", "/admin/", bAdmin)}
   </div>
 </body>
 </html>`;
@@ -144,5 +267,5 @@ http.createServer(async (req, res) => {
   res.writeHead(200, { "Content-Type": "text/html" });
   res.end(html);
 }).listen(3000, () => {
-  console.log("dashboard listening on http://localhost:3000");
+  console.log("dashboard listening on :3000");
 });
