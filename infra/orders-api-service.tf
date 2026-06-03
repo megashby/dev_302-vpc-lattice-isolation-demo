@@ -113,7 +113,7 @@ module "ecs_task_role_orders_api" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role"
   version = "~> 6.0"
 
-  name = "${local.name}-ecs-task-role-orders-api"
+  name            = "${local.name}-ecs-task-role-orders-api"
   use_name_prefix = false
 
   create = true
