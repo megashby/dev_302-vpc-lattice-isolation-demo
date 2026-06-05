@@ -1,0 +1,7 @@
+[
+  {
+    "Source": "demo.guardduty",
+    "DetailType": "GuardDuty Finding",
+    "Detail": "{\"type\":\"Runtime/CryptoCurrency.B!DNS\",\"severity\":7,\"resource\":{\"resourceType\":\"ECSCluster\",\"ecsClusterDetails\":{\"name\":\"demo-lattice-cluster\",\"arn\":\"arn:aws:ecs:us-east-1:222441492902:cluster/demo-lattice-cluster\",\"taskArn\":\"arn:aws:ecs:us-east-1:222441492902:task/demo-lattice-cluster/mock-task\",\"taskDefinitionArn\":\"arn:aws:ecs:us-east-1:222441492902:task-definition/orders-api:1\"},\"containerDetails\":{\"containerName\":\"orders-api\",\"image\":\"public.ecr.aws/docker/library/nginx:latest\",\"imageId\":\"mock-image-id\",\"taskArn\":\"arn:aws:ecs:us-east-1:222441492902:task/demo-lattice-cluster/mock-task\"}},\"service\":{\"runtimeDetails\":{\"context\":{\"domain\":\"pool.example-crypto.invalid\"}}}}"
+  }
+]
