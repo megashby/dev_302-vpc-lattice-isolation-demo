@@ -136,6 +136,11 @@ module "isolation_router" {
 
   create_current_version_allowed_triggers = false
 
+  environment_variables = {
+    DEFAULT_ADMIN_PATH    = "/admin/"
+    DEFAULT_ADMIN_RULE_ID = aws_vpclattice_listener_rule.admin_route.rule_id
+}
+
   depends_on = [
     null_resource.build_and_push_isolation_router
   ]

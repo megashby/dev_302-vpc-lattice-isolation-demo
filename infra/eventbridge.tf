@@ -6,6 +6,7 @@ resource "aws_cloudwatch_event_rule" "isolation_workflow" {
       "demo.apply_auth",
       "demo.isolate_admin",
       "demo.isolation_workflow",
+      "demo.guardduty",
       "aws.guardduty",
       "aws.securityhub"
     ]
