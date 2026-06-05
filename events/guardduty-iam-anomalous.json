@@ -1,0 +1,7 @@
+[
+  {
+    "Source": "demo.guardduty",
+    "DetailType": "GuardDuty Finding",
+    "Detail": "{\"type\":\"CredentialAccess:IAMUser/AnomalousBehavior\",\"severity\":7,\"resource\":{\"resourceType\":\"AccessKey\",\"accessKeyDetails\":{\"userType\":\"AssumedRole\",\"userName\":\"demo-lattice-ecs-task-role-client-b\"}}}"
+  }
+]
