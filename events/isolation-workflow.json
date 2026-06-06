@@ -1,7 +1,0 @@
-[
-  {
-    "Source": "demo.isolation_workflow",
-    "DetailType": "IsolationWorkflow",
-    "Detail": "{\"applyAuth\":true,\"shiftRoute\":true,\"blockedArn\":\"arn:aws:iam::222441492902:role/demo-lattice-ecs-task-role-client-b\",\"reason\":\"simulated compromise\"}"
-  }
-]

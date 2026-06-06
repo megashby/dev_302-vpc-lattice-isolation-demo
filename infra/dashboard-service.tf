@@ -220,24 +220,24 @@ resource "aws_ecs_task_definition" "dashboard" {
           value = module.ecs_task_role_client_b.arn
         },
         {
-            name  = "ROUTER_LOG_GROUP"
-            value = "/aws/lambda/${local.name}-isolation-router"
+          name  = "ROUTER_LOG_GROUP"
+          value = "/aws/lambda/${local.name}-isolation-router"
         },
         {
-            name  = "APPLY_AUTH_LOG_GROUP"
-            value = "/aws/lambda/${local.name}-apply-auth"
+          name  = "APPLY_AUTH_LOG_GROUP"
+          value = "/aws/lambda/${local.name}-apply-auth"
         },
         {
-            name  = "ISOLATE_ADMIN_LOG_GROUP"
-            value = "/aws/lambda/${local.name}-isolate-admin"
+          name  = "ISOLATE_ADMIN_LOG_GROUP"
+          value = "/aws/lambda/${local.name}-isolate-admin"
         },
         {
-            name  = "CLIENT_A_LOG_GROUP"
-            value = "/ecs/${local.name}-client-a"
+          name  = "CLIENT_A_LOG_GROUP"
+          value = "/ecs/${local.name}-client-a"
         },
         {
-            name  = "CLIENT_B_LOG_GROUP"
-            value = "/ecs/${local.name}-client-b"
+          name  = "CLIENT_B_LOG_GROUP"
+          value = "/ecs/${local.name}-client-b"
         }
       ]
 

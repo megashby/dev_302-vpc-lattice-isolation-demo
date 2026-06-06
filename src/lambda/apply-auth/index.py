@@ -1,20 +1,22 @@
 import json
-import os
 import boto3
 
 vpclattice = boto3.client("vpc-lattice")
 
 
+def require(event, key):
+    value = event.get(key)
+    if not value:
+        raise ValueError(f"Missing required field: {key}")
+    return value
+
+
 def lambda_handler(event, context):
-    service_arn = os.environ["SERVICE_ARN"]
+    print("=== APPLY AUTH START ===")
+    print("event:", json.dumps(event))
 
-    blocked_arn = (
-        event.get("blockedArn")
-        or event.get("detail", {}).get("blockedArn")
-    )
-
-    if not blocked_arn:
-        raise ValueError("Missing blockedArn")
+    blocked_arn = require(event, "blockedArn")
+    service_identifier = require(event, "serviceIdentifier")
 
     policy = {
         "Version": "2012-10-17",
@@ -40,15 +42,21 @@ def lambda_handler(event, context):
         ]
     }
 
+    print("serviceIdentifier:", service_identifier)
+    print("blockedArn:", blocked_arn)
+    print("policy:", json.dumps(policy, indent=2))
+
     response = vpclattice.put_auth_policy(
-        resourceIdentifier=service_arn,
-        policy=json.dumps(policy, separators=(",", ":"))
+        resourceIdentifier=service_identifier,
+        policy=json.dumps(policy)
     )
 
-    print(json.dumps(response, default=str, indent=2))
+    print("response:", json.dumps(response, default=str))
+    print("=== APPLY AUTH COMPLETE ===")
 
     return {
         "statusCode": 200,
         "blockedArn": blocked_arn,
+        "serviceIdentifier": service_identifier,
         "state": response.get("state")
     }

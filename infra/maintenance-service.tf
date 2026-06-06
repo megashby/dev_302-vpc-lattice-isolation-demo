@@ -113,11 +113,7 @@ resource "aws_vpclattice_target_group" "maintenance" {
       path             = "/"
       port             = 80
 
-      #health_check_interval_seconds = 30
       health_check_timeout_seconds = 3
-
-      #healthy_threshold_count   = 3
-      #unhealthy_threshold_count = 3
 
       health_check_interval_seconds = 6
       healthy_threshold_count       = 2

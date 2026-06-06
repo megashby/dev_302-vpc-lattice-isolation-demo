@@ -121,7 +121,6 @@ module "service_vpc" {
     "10.60.103.0/24"
   ]
 
-  # Keep identical behavior for consistency
   enable_nat_gateway = false
   single_nat_gateway = false
 
