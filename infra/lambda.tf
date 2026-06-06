@@ -52,12 +52,7 @@ module "isolate_admin" {
   timeout = 180
 
   environment_variables = {
-    # LISTENER_ID       = aws_vpclattice_listener.orders_api.listener_id
-    # SERVICE_ID        = aws_vpclattice_service.orders_api.id
-    # RULE_ID           = aws_vpclattice_listener_rule.admin_route.rule_id
     MAINTENANCE_TG_ID = aws_vpclattice_target_group.maintenance.id
-    # CLUSTER_NAME      = module.ecs_cluster.cluster_name
-    # SERVICE_NAME      = aws_ecs_service.orders_api.name
   }
 
   attach_policy_statements = true
@@ -136,10 +131,7 @@ module "isolation_router" {
 
   create_current_version_allowed_triggers = false
 
-  environment_variables = {
-    # DEFAULT_ADMIN_PATH    = "/admin/"
-    # DEFAULT_ADMIN_RULE_ID = aws_vpclattice_listener_rule.admin_route.rule_id
-}
+  environment_variables = {}
 
   depends_on = [
     null_resource.build_and_push_isolation_router
@@ -183,7 +175,6 @@ module "apply_auth" {
   timeout = 60
 
   environment_variables = {
-    # SERVICE_ARN = aws_vpclattice_service.orders_api.arn
   }
 
   attach_policy_statements = true

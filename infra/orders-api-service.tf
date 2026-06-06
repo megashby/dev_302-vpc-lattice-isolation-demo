@@ -97,13 +97,6 @@ resource "aws_ecs_service" "orders_api" {
     port_name = "orders-api"
   }
 
-  # vpc_lattice_configurations {
-  #   role_arn         = module.db_proxy_ecs_infra_role.arn
-  #   target_group_arn = aws_vpclattice_target_group.maintenance.arn
-  #   # port_name        = "maintenance"
-  #   port_name = "orders-api"
-  # }
-
   depends_on = [
     aws_vpclattice_target_group.orders_api
   ]
@@ -160,11 +153,7 @@ resource "aws_vpclattice_target_group" "orders_api" {
       path             = "/"
       port             = 80
 
-      #health_check_interval_seconds = 30
       health_check_timeout_seconds = 3
-
-      #healthy_threshold_count   = 3
-      #unhealthy_threshold_count = 3
 
       health_check_interval_seconds = 6
       healthy_threshold_count       = 2
@@ -176,7 +165,6 @@ resource "aws_vpclattice_target_group" "orders_api" {
 resource "aws_vpclattice_service" "orders_api" {
   name      = "orders-api"
   auth_type = "AWS_IAM"
-  #auth_type = "NONE"
 }
 
 resource "aws_vpclattice_listener" "orders_api" {
@@ -217,8 +205,7 @@ resource "aws_vpclattice_listener_rule" "admin_route" {
     forward {
       target_groups {
         target_group_identifier = aws_vpclattice_target_group.orders_api.id
-        #target_group_identifier = aws_vpclattice_target_group.maintenance.id
-        weight = 100
+        weight                  = 100
       }
     }
   }
