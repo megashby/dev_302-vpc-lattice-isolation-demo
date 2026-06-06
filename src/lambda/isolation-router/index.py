@@ -1,8 +1,4 @@
 import json
-import os
-
-DEFAULT_ADMIN_RULE_ID = os.environ.get("DEFAULT_ADMIN_RULE_ID", "")
-DEFAULT_ADMIN_PATH = os.environ.get("DEFAULT_ADMIN_PATH", "/admin/")
 
 AUTH_FINDINGS = {
     "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration",
@@ -12,9 +8,6 @@ AUTH_FINDINGS = {
 ROUTE_FINDINGS = {
     "Runtime/BitcoinTool.B",
     "Runtime/CryptoCurrency.B!DNS",
-    "CryptoCurrency:Runtime/BitcoinTool.B",
-    "CryptoCurrency:Runtime/BitcoinTool.B!DNS",
-    "Backdoor:Runtime/C&CActivity.B!DNS",
 }
 
 
@@ -27,6 +20,36 @@ def get_nested(obj, *keys):
     return cur
 
 
+def require(value, name):
+    if not value:
+        raise ValueError(f"Missing required field: {name}")
+    return value
+
+
+def get_service_identifier(detail):
+    return (
+        detail.get("serviceIdentifier")
+        or detail.get("serviceId")
+        or detail.get("serviceArn")
+    )
+
+
+def get_listener_identifier(detail):
+    return (
+        detail.get("listenerIdentifier")
+        or detail.get("listenerId")
+        or detail.get("listenerArn")
+    )
+
+
+def get_rule_identifier(detail):
+    return (
+        detail.get("ruleIdentifier")
+        or detail.get("ruleId")
+        or detail.get("ruleArn")
+    )
+
+
 def extract_iam_role_arn(event, detail):
     account_id = event.get("account") or detail.get("accountId")
 
@@ -37,7 +60,6 @@ def extract_iam_role_arn(event, detail):
     if user_type == "AssumedRole" and user_name and account_id:
         return f"arn:aws:iam::{account_id}:role/{user_name}"
 
-    # Optional escape hatch for mock/demo events
     return (
         get_nested(detail, "resource", "accessKeyDetails", "principalArn")
         or detail.get("blockedArn")
@@ -47,18 +69,8 @@ def extract_iam_role_arn(event, detail):
 def extract_runtime_context(detail):
     resource = detail.get("resource", {})
 
-    # Shapes vary across runtime resources, so keep this defensive.
-    ecs_cluster = (
-        resource.get("ecsClusterDetails")
-        or resource.get("ecsCluster")
-        or {}
-    )
-
-    container = (
-        resource.get("containerDetails")
-        or resource.get("container")
-        or {}
-    )
+    ecs_cluster = resource.get("ecsClusterDetails") or {}
+    container = resource.get("containerDetails") or {}
 
     return {
         "ecsClusterArn": ecs_cluster.get("arn"),
@@ -77,64 +89,70 @@ def lambda_handler(event, context):
     source = event.get("source")
     detail_type = event.get("detail-type")
     detail = event.get("detail", {}) or {}
-
     finding_type = detail.get("type")
+
+    if source not in ["aws.guardduty", "demo.guardduty"]:
+        raise ValueError(f"Unsupported source: {source}")
+
+    if detail_type != "GuardDuty Finding":
+        raise ValueError(f"Unsupported detail-type: {detail_type}")
 
     response = {
         "applyAuth": False,
         "shiftRoute": False,
-        "reason": detail.get("reason", finding_type or "no reason provided"),
+        "findingType": finding_type,
+        "reason": detail.get("reason", finding_type),
         "originalSource": source,
         "originalDetailType": detail_type,
-        "findingType": finding_type,
     }
 
-    # Existing demo/custom events
-    if source == "demo.apply_auth" or detail_type == "ApplyAuthPolicy":
-        response["applyAuth"] = True
-        response["blockedArn"] = detail["blockedArn"]
+    if finding_type in AUTH_FINDINGS:
+        blocked_arn = require(
+            extract_iam_role_arn(event, detail),
+            "blockedArn"
+        )
 
-    elif source == "demo.isolate_admin" or detail_type == "ShiftAdminRoute":
-        response["shiftRoute"] = True
-        response["path"] = detail.get("path", DEFAULT_ADMIN_PATH)
-        response["ruleId"] = detail.get("ruleId", DEFAULT_ADMIN_RULE_ID)
+        service_identifier = require(
+            get_service_identifier(detail),
+            "serviceIdentifier"
+        )
 
-    elif source == "demo.isolation_workflow" or detail_type == "IsolationWorkflow":
-        response["applyAuth"] = detail.get("applyAuth", False)
-        response["shiftRoute"] = detail.get("shiftRoute", False)
+        response.update({
+            "applyAuth": True,
+            "blockedArn": blocked_arn,
+            "serviceIdentifier": service_identifier,
+        })
 
-        if response["applyAuth"]:
-            response["blockedArn"] = detail["blockedArn"]
+    elif finding_type in ROUTE_FINDINGS:
+        service_identifier = require(
+            get_service_identifier(detail),
+            "serviceIdentifier"
+        )
 
-        if response["shiftRoute"]:
-            response["path"] = detail.get("path", DEFAULT_ADMIN_PATH)
-            response["ruleId"] = detail.get("ruleId", DEFAULT_ADMIN_RULE_ID)
+        listener_identifier = require(
+            get_listener_identifier(detail),
+            "listenerIdentifier"
+        )
 
-    # GuardDuty events
-    elif source == "aws.guardduty" or source == "demo.guardduty":
-        if finding_type in AUTH_FINDINGS:
-            blocked_arn = extract_iam_role_arn(event, detail)
+        rule_identifier = require(
+            get_rule_identifier(detail),
+            "ruleIdentifier"
+        )
 
-            if not blocked_arn:
-                raise ValueError(f"Could not extract blockedArn from GuardDuty finding: {finding_type}")
+        path = require(detail.get("path"), "path")
 
-            response["applyAuth"] = True
-            response["blockedArn"] = blocked_arn
+        response.update({
+            "shiftRoute": True,
+            "serviceIdentifier": service_identifier,
+            "listenerIdentifier": listener_identifier,
+            "ruleIdentifier": rule_identifier,
+            "path": path,
+        })
 
-        elif finding_type in ROUTE_FINDINGS:
-            response["shiftRoute"] = True
-            response["path"] = DEFAULT_ADMIN_PATH
-            response["ruleId"] = DEFAULT_ADMIN_RULE_ID
-            response.update(extract_runtime_context(detail))
+        response.update(extract_runtime_context(detail))
 
-        else:
-            print(f"No isolation action mapped for GuardDuty finding type: {finding_type}")
-
-    if response["applyAuth"] and not response.get("blockedArn"):
-        raise ValueError("applyAuth=true but no blockedArn was provided")
-
-    if response["shiftRoute"] and not response.get("ruleId"):
-        raise ValueError("shiftRoute=true but no ruleId was provided")
+    else:
+        print(f"No action mapped for finding type: {finding_type}")
 
     print("router response:", json.dumps(response))
     return response

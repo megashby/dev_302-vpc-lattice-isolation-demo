@@ -50,50 +50,50 @@ module "ecs_vpc" {
   enable_dns_support   = true
 }
 
-module "ecs_vpc_endpoints" {
-  source  = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
-  version = "~> 6.0"
+# module "ecs_vpc_endpoints" {
+#   source  = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
+#   version = "~> 6.0"
 
-  vpc_id = module.ecs_vpc.vpc_id
+#   vpc_id = module.ecs_vpc.vpc_id
 
-  create_security_group = false
+#   create_security_group = false
 
-  endpoints = {
-    ecr_api = {
-      service             = "ecr.api"
-      subnet_ids          = module.ecs_vpc.private_subnets
-      security_group_ids  = [aws_security_group.ecs_vpce.id]
-      private_dns_enabled = true
-    }
+#   endpoints = {
+#     ecr_api = {
+#       service             = "ecr.api"
+#       subnet_ids          = module.ecs_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.ecs_vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    ecr_dkr = {
-      service             = "ecr.dkr"
-      subnet_ids          = module.ecs_vpc.private_subnets
-      security_group_ids  = [aws_security_group.ecs_vpce.id]
-      private_dns_enabled = true
-    }
+#     ecr_dkr = {
+#       service             = "ecr.dkr"
+#       subnet_ids          = module.ecs_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.ecs_vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    logs = {
-      service             = "logs"
-      subnet_ids          = module.ecs_vpc.private_subnets
-      security_group_ids  = [aws_security_group.ecs_vpce.id]
-      private_dns_enabled = true
-    }
+#     logs = {
+#       service             = "logs"
+#       subnet_ids          = module.ecs_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.ecs_vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    sts = {
-      service             = "sts"
-      subnet_ids          = module.ecs_vpc.private_subnets
-      security_group_ids  = [aws_security_group.ecs_vpce.id]
-      private_dns_enabled = true
-    }
+#     sts = {
+#       service             = "sts"
+#       subnet_ids          = module.ecs_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.ecs_vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    s3 = {
-      service         = "s3"
-      service_type    = "Gateway"
-      route_table_ids = module.ecs_vpc.private_route_table_ids
-    }
-  }
-}
+#     s3 = {
+#       service         = "s3"
+#       service_type    = "Gateway"
+#       route_table_ids = module.ecs_vpc.private_route_table_ids
+#     }
+#   }
+# }
 
 
 module "service_vpc" {
@@ -149,48 +149,48 @@ resource "aws_security_group" "vpce" {
   }
 }
 
-module "service_vpc_endpoints" {
-  source  = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
-  version = "~> 6.0"
+# module "service_vpc_endpoints" {
+#   source  = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
+#   version = "~> 6.0"
 
-  vpc_id = module.service_vpc.vpc_id
+#   vpc_id = module.service_vpc.vpc_id
 
-  create_security_group = false
+#   create_security_group = false
 
-  endpoints = {
-    ecr_api = {
-      service             = "ecr.api"
-      subnet_ids          = module.service_vpc.private_subnets
-      security_group_ids  = [aws_security_group.vpce.id]
-      private_dns_enabled = true
-    }
+#   endpoints = {
+#     ecr_api = {
+#       service             = "ecr.api"
+#       subnet_ids          = module.service_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    ecr_dkr = {
-      service             = "ecr.dkr"
-      subnet_ids          = module.service_vpc.private_subnets
-      security_group_ids  = [aws_security_group.vpce.id]
-      private_dns_enabled = true
-    }
+#     ecr_dkr = {
+#       service             = "ecr.dkr"
+#       subnet_ids          = module.service_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    logs = {
-      service             = "logs"
-      subnet_ids          = module.service_vpc.private_subnets
-      security_group_ids  = [aws_security_group.vpce.id]
-      private_dns_enabled = true
-    }
+#     logs = {
+#       service             = "logs"
+#       subnet_ids          = module.service_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    sts = {
-      service             = "sts"
-      subnet_ids          = module.service_vpc.private_subnets
-      security_group_ids  = [aws_security_group.vpce.id]
-      private_dns_enabled = true
-    }
+#     sts = {
+#       service             = "sts"
+#       subnet_ids          = module.service_vpc.private_subnets
+#       security_group_ids  = [aws_security_group.vpce.id]
+#       private_dns_enabled = true
+#     }
 
-    s3 = {
-      service         = "s3"
-      service_type    = "Gateway"
-      route_table_ids = module.service_vpc.private_route_table_ids
-    }
-  }
-}
+#     s3 = {
+#       service         = "s3"
+#       service_type    = "Gateway"
+#       route_table_ids = module.service_vpc.private_route_table_ids
+#     }
+#   }
+# }
 

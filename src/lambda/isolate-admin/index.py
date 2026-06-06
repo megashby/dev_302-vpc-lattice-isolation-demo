@@ -1,47 +1,61 @@
-import boto3
+import json
 import os
+import boto3
 
 vpclattice = boto3.client("vpc-lattice")
 
+
+def require(event, key):
+    value = event.get(key)
+    if not value:
+        raise ValueError(f"Missing required field: {key}")
+    return value
+
+
 def lambda_handler(event, context):
+    print("=== ROUTE ISOLATION START ===")
+    print("event:", json.dumps(event))
 
-    listener_id = os.environ["LISTENER_ID"]
-    service_id = os.environ["SERVICE_ID"]
-    rule_id = os.environ["RULE_ID"]
-    maintenance_tg = os.environ["MAINTENANCE_TG_ID"]  # IMPORTANT: ID, not ARN
+    service_identifier = require(event, "serviceIdentifier")
+    listener_identifier = require(event, "listenerIdentifier")
+    rule_identifier = require(event, "ruleIdentifier")
+    path = require(event, "path")
 
-    print("=== ISOLATION START ===")
-    print("Switching /admin route to MAINTENANCE target group")
+    maintenance_tg = os.environ["MAINTENANCE_TG_ID"]
+    reason = event.get("reason", "route isolation requested")
 
-    try:
-        response = vpclattice.update_rule(
-            serviceIdentifier=service_id,
-            listenerIdentifier=listener_id,
-            ruleIdentifier=rule_id,
-            action={
-                "forward": {
-                    "targetGroups": [
-                        {
-                            "targetGroupIdentifier": maintenance_tg,
-                            "weight": 100
-                        }
-                    ]
-                }
+    print("reason:", reason)
+    print("path:", path)
+    print("serviceIdentifier:", service_identifier)
+    print("listenerIdentifier:", listener_identifier)
+    print("ruleIdentifier:", rule_identifier)
+    print("maintenanceTargetGroup:", maintenance_tg)
+
+    response = vpclattice.update_rule(
+        serviceIdentifier=service_identifier,
+        listenerIdentifier=listener_identifier,
+        ruleIdentifier=rule_identifier,
+        action={
+            "forward": {
+                "targetGroups": [
+                    {
+                        "targetGroupIdentifier": maintenance_tg,
+                        "weight": 100
+                    }
+                ]
             }
-        )
-
-        print("Rule update successful")
-        print(response)
-
-        print("=== ISOLATION COMPLETE ===")
-
-        return {
-            "status": "ok",
-            "message": "Admin endpoint switched to maintenance",
-            "ruleArn": response.get("arn")
         }
+    )
 
-    except Exception as e:
-        print("FATAL ERROR switching to maintenance")
-        print(str(e))
-        raise
+    print("response:", json.dumps(response, default=str))
+    print("=== ROUTE ISOLATION COMPLETE ===")
+
+    return {
+        "status": "ok",
+        "message": f"{path} switched to maintenance",
+        "path": path,
+        "serviceIdentifier": service_identifier,
+        "listenerIdentifier": listener_identifier,
+        "ruleIdentifier": rule_identifier,
+        "ruleArn": response.get("arn")
+    }
