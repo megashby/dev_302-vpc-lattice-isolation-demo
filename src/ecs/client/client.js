@@ -6,19 +6,38 @@ const { HttpRequest } = require("@smithy/protocol-http");
 const { STSClient, GetCallerIdentityCommand } = require("@aws-sdk/client-sts");
 
 const endpoint = process.env.LATTICE_ENDPOINT;
+const region = process.env.AWS_REGION || "us-east-1";
+
+const requestPaths = ["/public/", "/admin/"];
+let requestIndex = 0;
+
+function summarizeBody(body = "") {
+  const lower = body.toLowerCase();
+
+  if (lower.includes("maintenance")) return "MAINTENANCE PAGE";
+  if (lower.includes("admin")) return "ADMIN PAGE";
+  if (lower.includes("public")) return "PUBLIC PAGE";
+  if (lower.includes("accessdenied") || lower.includes("not authorized")) {
+    return "ACCESS DENIED";
+  }
+
+  return body.replace(/\s+/g, " ").slice(0, 160);
+}
 
 async function getIdentity() {
   try {
-    const sts = new STSClient({ region: "us-east-1" });
+    const sts = new STSClient({ region });
     const identity = await sts.send(new GetCallerIdentityCommand({}));
-
     console.log("STS identity ARN:", identity.Arn);
   } catch (err) {
-    console.error("STS identity lookup failed:", err);
+    console.error("STS identity lookup failed:", err.message);
   }
 }
 
 async function makeRequest() {
+  const requestPath = requestPaths[requestIndex % requestPaths.length];
+  requestIndex += 1;
+
   try {
     await getIdentity();
 
@@ -26,7 +45,7 @@ async function makeRequest() {
 
     const signer = new SignatureV4({
       credentials,
-      region: "us-east-1",
+      region,
       service: "vpc-lattice-svcs",
       sha256: Sha256,
     });
@@ -35,7 +54,7 @@ async function makeRequest() {
       protocol: "http:",
       hostname: endpoint,
       method: "GET",
-      path: "/public/",
+      path: requestPath,
       headers: {
         host: endpoint,
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
@@ -45,33 +64,31 @@ async function makeRequest() {
     const signedRequest = await signer.sign(request);
 
     console.log("---- REQUEST ----");
-    console.log("path:", request.path);
+    console.log("path:", requestPath);
     console.log("host:", endpoint);
-    console.log(
-      "auth header exists:",
-      !!signedRequest.headers.authorization
+    console.log("auth header exists:", !!signedRequest.headers.authorization);
+
+    const req = http.request(
+      {
+        hostname: endpoint,
+        port: 80,
+        path: requestPath,
+        method: "GET",
+        headers: signedRequest.headers,
+      },
+      (res) => {
+        let body = "";
+
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        res.on("end", () => {
+          console.log("status:", res.statusCode);
+          console.log("result:", summarizeBody(body));
+        });
+      }
     );
-
-    const options = {
-      hostname: endpoint,
-      port: 80,
-      path: "/public/",
-      method: "GET",
-      headers: signedRequest.headers,
-    };
-
-    const req = http.request(options, (res) => {
-      let body = "";
-
-      res.on("data", (chunk) => {
-        body += chunk;
-      });
-
-      res.on("end", () => {
-        console.log("status:", res.statusCode);
-        console.log("body:", body);
-      });
-    });
 
     req.on("error", (err) => {
       console.error("request error:", err.message);
@@ -79,7 +96,7 @@ async function makeRequest() {
 
     req.end();
   } catch (err) {
-    console.error("client error:", err);
+    console.error("client error:", err.message);
   }
 }
 

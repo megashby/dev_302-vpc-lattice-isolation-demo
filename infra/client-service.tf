@@ -1,3 +1,11 @@
+locals {
+  client_image_tag = substr(sha256(join("", [
+    filesha256("../src/ecs/client/client.js"),
+    filesha256("../src/ecs/client/Dockerfile"),
+    filesha256("../src/ecs/client/package.json")
+  ])), 0, 16)
+}
+
 module "ecs_cluster" {
   source  = "terraform-aws-modules/ecs/aws"
   version = "~> 6.0"
@@ -138,7 +146,7 @@ resource "aws_ecs_task_definition" "client_a" {
   container_definitions = jsonencode([
     {
       name  = "client"
-      image = "${aws_ecr_repository.client.repository_url}:latest"
+      image = "${aws_ecr_repository.client.repository_url}:${local.client_image_tag}"
 
       essential = true
 
@@ -180,7 +188,7 @@ resource "aws_ecs_task_definition" "client_b" {
   container_definitions = jsonencode([
     {
       name  = "client"
-      image = "${aws_ecr_repository.client.repository_url}:latest"
+      image = "${aws_ecr_repository.client.repository_url}:${local.client_image_tag}"
 
       essential = true
 
@@ -323,11 +331,8 @@ resource "aws_ecr_repository" "client" {
 }
 
 resource "null_resource" "build_and_push_client" {
-
   triggers = {
-    client     = filemd5("../src/ecs/client/client.js")
-    dockerfile = filemd5("../src/ecs/client/Dockerfile")
-    package    = filemd5("../src/ecs/client/package.json")
+    image_tag = local.client_image_tag
   }
 
   provisioner "local-exec" {
@@ -336,8 +341,8 @@ resource "null_resource" "build_and_push_client" {
       | docker login --username AWS --password-stdin ${aws_ecr_repository.client.repository_url}
 
       docker build --platform linux/amd64 -t client ../src/ecs/client
-      docker tag client:latest ${aws_ecr_repository.client.repository_url}:latest
-      docker push ${aws_ecr_repository.client.repository_url}:latest
+      docker tag client:latest ${aws_ecr_repository.client.repository_url}:${local.client_image_tag}
+      docker push ${aws_ecr_repository.client.repository_url}:${local.client_image_tag}
     EOT
   }
 }

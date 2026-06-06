@@ -13,7 +13,11 @@ const endpoint = process.env.LATTICE_ENDPOINT;
 const clientARoleArn = process.env.CLIENT_A_ROLE_ARN;
 const clientBRoleArn = process.env.CLIENT_B_ROLE_ARN;
 
+const REQUIRED_CONSECUTIVE_RESULTS = 2;
+const LOG_LOOKBACK_MINUTES = 2;
+
 const logs = new CloudWatchLogsClient({ region });
+const stateCache = new Map();
 
 async function assume(roleArn, name) {
   const sts = new STSClient({ region });
@@ -101,7 +105,21 @@ async function callAs(roleArn, name, path) {
   }
 }
 
-async function getRecentLogs(logGroupName, minutes = 10) {
+function cleanLogMessage(message = "") {
+  return String(message)
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanLogMessage(message = "") {
+  return String(message)
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function getRecentLogs(logGroupName, minutes = LOG_LOOKBACK_MINUTES) {
   if (!logGroupName) return "log group not configured";
 
   try {
@@ -109,16 +127,17 @@ async function getRecentLogs(logGroupName, minutes = 10) {
       new FilterLogEventsCommand({
         logGroupName,
         startTime: Date.now() - minutes * 60 * 1000,
-        limit: 25,
+        limit: 50,
         interleaved: true
       })
     );
 
     const output = (res.events || [])
-      .map((e) => `${new Date(e.timestamp).toISOString()} ${e.message}`)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map((e) => `${new Date(e.timestamp).toISOString()} ${cleanLogMessage(e.message)}`)
       .join("\n");
 
-    return output || "no recent logs";
+    return output || `no logs in the last ${minutes} minutes`;
   } catch (err) {
     return `error reading logs from ${logGroupName}: ${err.message}`;
   }
@@ -134,10 +153,78 @@ function escapeHtml(str = "") {
   }[c]));
 }
 
-function classify(path, result) {
-  const body = (result.body || "").toLowerCase();
+function summarizeBody(body = "") {
+  const lower = body.toLowerCase();
 
-  if (result.status === 403) {
+  if (lower.includes("maintenance")) return "MAINTENANCE PAGE";
+  if (lower.includes("admin")) return "ADMIN PAGE";
+  if (lower.includes("public")) return "PUBLIC PAGE";
+  if (lower.includes("accessdenied") || lower.includes("not authorized")) {
+    return "ACCESS DENIED";
+  }
+
+  return body.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").slice(0, 160);
+}
+
+function rawState(path, result) {
+  const summary = summarizeBody(result.body);
+
+  if (result.status === 403) return "ISOLATED";
+  if (result.status === "ERR") return "ERROR";
+
+  if (path === "/admin/") {
+    if (summary === "MAINTENANCE PAGE") return "MAINTENANCE MODE";
+    if (summary === "ADMIN PAGE") return "ADMIN PAGE";
+  }
+
+  if (result.ok) return "ALLOWED";
+
+  return `HTTP ${result.status}`;
+}
+
+function stableKey(clientName, path) {
+  return `${clientName}:${path}`;
+}
+
+function getStableState(clientName, path, result) {
+  const key = stableKey(clientName, path);
+  const observed = rawState(path, result);
+  const previous = stateCache.get(key);
+
+  if (!previous) {
+    const initial = {
+      stable: observed,
+      candidate: observed,
+      count: 1
+    };
+
+    stateCache.set(key, initial);
+    return initial;
+  }
+
+  if (observed === previous.stable) {
+    previous.candidate = observed;
+    previous.count = 1;
+    return previous;
+  }
+
+  if (observed === previous.candidate) {
+    previous.count += 1;
+  } else {
+    previous.candidate = observed;
+    previous.count = 1;
+  }
+
+  if (previous.count >= REQUIRED_CONSECUTIVE_RESULTS) {
+    previous.stable = observed;
+    previous.count = 1;
+  }
+
+  return previous;
+}
+
+function classifyStable(stableState, result) {
+  if (stableState === "ISOLATED") {
     return {
       label: "ISOLATED",
       detail: "VPC Lattice auth policy denied this client",
@@ -145,7 +232,7 @@ function classify(path, result) {
     };
   }
 
-  if (result.status === "ERR") {
+  if (stableState === "ERROR") {
     return {
       label: "ERROR",
       detail: result.body,
@@ -153,25 +240,23 @@ function classify(path, result) {
     };
   }
 
-  if (path === "/admin/") {
-    if (body.includes("maintenance")) {
-      return {
-        label: "MAINTENANCE MODE",
-        detail: "Admin route shifted to maintenance target group",
-        className: "warn"
-      };
-    }
-
-    if (body.includes("admin")) {
-      return {
-        label: "ADMIN PAGE",
-        detail: "Admin route still points to primary service",
-        className: "ok"
-      };
-    }
+  if (stableState === "MAINTENANCE MODE") {
+    return {
+      label: "MAINTENANCE MODE",
+      detail: "Admin route shifted to maintenance target group",
+      className: "warn"
+    };
   }
 
-  if (result.ok) {
+  if (stableState === "ADMIN PAGE") {
+    return {
+      label: "ADMIN PAGE",
+      detail: "Admin route points to primary service",
+      className: "ok"
+    };
+  }
+
+  if (stableState === "ALLOWED") {
     return {
       label: "ALLOWED",
       detail: "Request succeeded through VPC Lattice",
@@ -180,30 +265,39 @@ function classify(path, result) {
   }
 
   return {
-    label: `${result.status}`,
-    detail: result.body.slice(0, 140),
+    label: stableState,
+    detail: summarizeBody(result.body),
     className: "warn"
   };
 }
 
 function card(clientName, path, result) {
-  const state = classify(path, result);
+  const stable = getStableState(clientName, path, result);
+  const state = classifyStable(stable.stable, result);
+  const bodySummary = summarizeBody(result.body);
+
+  const pending =
+    stable.candidate !== stable.stable
+      ? `<div class="pending">observed ${escapeHtml(stable.candidate)} ${stable.count}/${REQUIRED_CONSECUTIVE_RESULTS}</div>`
+      : "";
 
   return `
     <div class="card ${state.className}">
       <div class="eyebrow">${clientName}</div>
-      <h2>${state.label}</h2>
-      <div class="path">${path}</div>
-      <div class="status">HTTP ${result.status}</div>
+      <h2>${escapeHtml(state.label)}</h2>
+      <div class="path">${escapeHtml(path)}</div>
+      <div class="status">HTTP ${escapeHtml(result.status)}</div>
       <p>${escapeHtml(state.detail)}</p>
+      <div class="summary">Response: ${escapeHtml(bodySummary)}</div>
+      ${pending}
     </div>
   `;
 }
 
-function logSection(title, logs) {
+function logSection(title, logs, open = false) {
   return `
-    <details class="logs">
-      <summary>${title}</summary>
+    <details class="logs" ${open ? "open" : ""}>
+      <summary>${escapeHtml(title)}</summary>
       <pre>${escapeHtml(logs)}</pre>
     </details>
   `;
@@ -236,7 +330,6 @@ async function render() {
 <!doctype html>
 <html>
 <head>
-  <meta http-equiv="refresh" content="5">
   <title>VPC Lattice Isolation Demo</title>
   <style>
     body {
@@ -254,8 +347,19 @@ async function render() {
 
     .sub {
       color:#cbd5e1;
-      margin-bottom:32px;
+      margin-bottom:18px;
       font-size:18px;
+    }
+
+    button {
+      background:#2563eb;
+      color:white;
+      border:0;
+      border-radius:10px;
+      padding:12px 18px;
+      font-size:16px;
+      cursor:pointer;
+      margin-bottom:24px;
     }
 
     .grid {
@@ -319,6 +423,19 @@ async function render() {
       line-height:1.4;
     }
 
+    .summary {
+      margin-top:14px;
+      font-size:16px;
+      color:#dbeafe;
+    }
+
+    .pending {
+      margin-top:14px;
+      font-size:14px;
+      color:#fde68a;
+      opacity:.9;
+    }
+
     .log-grid {
       margin-top:32px;
       display:grid;
@@ -343,15 +460,21 @@ async function render() {
       margin-top:12px;
       white-space:pre-wrap;
       color:#cbd5e1;
-      font-size:13px;
-      max-height:260px;
+      font-size:14px;
+      max-height:520px;
       overflow:auto;
+      line-height:1.45;
     }
   </style>
 </head>
 <body>
   <h1>VPC Lattice Isolation Demo</h1>
-  <div class="sub">Signed requests through VPC Lattice as Client A and Client B. Auto-refreshes every 5 seconds.</div>
+  <div class="sub">
+    Signed requests through VPC Lattice as Client A and Client B.
+    Click refresh to update live state. Logs are delayed and shown newest first.
+  </div>
+
+  <button onclick="window.location.reload()">Refresh status</button>
 
   <div class="grid">
     ${card("Client A", "/public/", aPublic)}
@@ -361,11 +484,11 @@ async function render() {
   </div>
 
   <div class="log-grid">
-    ${logSection("Router Lambda logs", routerLogs)}
-    ${logSection("ApplyAuth Lambda logs", applyAuthLogs)}
-    ${logSection("IsolateAdmin Lambda logs", isolateAdminLogs)}
-    ${logSection("Client A ECS logs", clientALogs)}
-    ${logSection("Client B ECS logs", clientBLogs)}
+    ${logSection(`Client A ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientALogs, true)}
+    ${logSection(`Client B ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientBLogs, true)}
+    ${logSection(`Router Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, routerLogs)}
+    ${logSection(`ApplyAuth Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, applyAuthLogs)}
+    ${logSection(`IsolateAdmin Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, isolateAdminLogs)}
   </div>
 </body>
 </html>`;
