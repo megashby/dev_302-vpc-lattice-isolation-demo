@@ -2,6 +2,6 @@
   {
     "Source": "demo.guardduty",
     "DetailType": "GuardDuty Finding",
-    "Detail": "{\"type\":\"CredentialAccess:IAMUser/AnomalousBehavior\",\"severity\":7,\"serviceIdentifier\":\"svc-0e718117da7c9ac76\",\"resource\":{\"resourceType\":\"AccessKey\",\"accessKeyDetails\":{\"userType\":\"AssumedRole\",\"userName\":\"demo-lattice-ecs-task-role-client-b\"}}}"
+    "Detail": "{\"schemaVersion\":\"2.0\",\"accountId\":\"222441492902\",\"region\":\"us-east-1\",\"partition\":\"aws\",\"id\":\"demo-iam-anomalous-client-b\",\"type\":\"PrivilegeEscalation:IAMUser/AnomalousBehavior\",\"severity\":5.0,\"title\":\"The client-b task role is anomalously invoking APIs commonly used in PrivilegeEscalation tactics.\",\"description\":\"APIs commonly used in PrivilegeEscalation tactics were invoked by the client-b task role under unusual circumstances.\",\"resource\":{\"resourceType\":\"AccessKey\",\"accessKeyDetails\":{\"accessKeyId\":\"GeneratedFindingAccessKeyId\",\"principalId\":\"GeneratedFindingPrincipalId:client-b\",\"userName\":\"arn:aws:iam::222441492902:role/demo-lattice-ecs-task-role-client-b\",\"userType\":\"AssumedRole\"}},\"service\":{\"serviceName\":\"guardduty\",\"action\":{\"actionType\":\"AWS_API_CALL\",\"awsApiCallAction\":{\"api\":\"PutRolePolicy\",\"callerType\":\"Remote IP\",\"errorCode\":\"AccessDenied\",\"serviceName\":\"iam.amazonaws.com\"}},\"additionalInfo\":{\"value\":\"{\\\"sample\\\":true}\",\"type\":\"default\"}}}"
   }
 ]
