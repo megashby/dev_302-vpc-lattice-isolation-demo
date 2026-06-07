@@ -51,9 +51,7 @@ module "isolate_admin" {
 
   timeout = 180
 
-  environment_variables = {
-    MAINTENANCE_TG_ID = aws_vpclattice_target_group.maintenance.id
-  }
+  environment_variables = {}
 
   attach_policy_statements = true
 
@@ -77,6 +75,9 @@ module "isolate_admin" {
       actions = [
         "vpc-lattice:RegisterTargets",
         "vpc-lattice:ListTargets",
+        "vpc-lattice:ListServices",
+        "vpc-lattice:ListListeners",
+        "vpc-lattice:ListRules",
         "vpc-lattice:DeregisterTargets",
         "vpc-lattice:GetTargetGroup"
       ]
@@ -127,11 +128,43 @@ module "isolation_router" {
 
   timeout = 60
 
-  attach_policy_statements = false
+  attach_policy_statements = true
 
   create_current_version_allowed_triggers = false
 
-  environment_variables = {}
+  environment_variables = {
+    MAINTENANCE_TG_IDENTIFIER = aws_vpclattice_target_group.maintenance.arn
+    LATTICE_ACCESS_LOG_GROUP  = aws_cloudwatch_log_group.lattice_access_logs.name
+    LOG_LOOKBACK_SECONDS      = "300"
+  }
+
+  policy_statements = {
+    readVPCLattice = {
+      effect = "Allow"
+      actions = [
+        "ecs:ListTasks",
+        "ecs:DescribeTasks",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "vpc-lattice:GetRule",
+        "vpc-lattice:ListTargets",
+        "vpc-lattice:ListServices",
+        "vpc-lattice:ListListeners",
+        "vpc-lattice:ListRules",
+        "vpc-lattice:GetTargetGroup"
+      ]
+      resources = ["*"]
+    }
+
+    list_logs = {
+      effect = "Allow"
+      actions = [
+        "logs:FilterLogEvents"
+      ]
+      resources = ["*"]
+    }
+  }
 
   depends_on = [
     null_resource.build_and_push_isolation_router

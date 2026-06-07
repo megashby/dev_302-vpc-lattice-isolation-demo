@@ -21,7 +21,7 @@ def lambda_handler(event, context):
     rule_identifier = require(event, "ruleIdentifier")
     path = require(event, "path")
 
-    maintenance_tg = os.environ["MAINTENANCE_TG_ID"]
+    maintenance_tg = event["maintenanceTargetGroupIdentifier"]
     reason = event.get("reason", "route isolation requested")
 
     print("reason:", reason)
