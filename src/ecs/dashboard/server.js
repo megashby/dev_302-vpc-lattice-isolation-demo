@@ -79,6 +79,7 @@ async function callAs(roleArn, name, path) {
           res.on("end", () => {
             resolve({
               status: res.statusCode,
+              headers: res.headers || {},
               ok: res.statusCode >= 200 && res.statusCode < 300,
               body
             });
@@ -89,6 +90,7 @@ async function callAs(roleArn, name, path) {
       req.on("error", (err) =>
         resolve({
           status: "ERR",
+          headers: {},
           ok: false,
           body: err.message
         })
@@ -99,17 +101,11 @@ async function callAs(roleArn, name, path) {
   } catch (err) {
     return {
       status: "ERR",
+      headers: {},
       ok: false,
       body: err.message
     };
   }
-}
-
-function cleanLogMessage(message = "") {
-  return String(message)
-    .replace(/<[^>]*>/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function cleanLogMessage(message = "") {
@@ -303,6 +299,75 @@ function logSection(title, logs, open = false) {
   `;
 }
 
+function previewError(path, result) {
+  return `
+<!doctype html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background:#111827;
+      color:white;
+      margin:0;
+      padding:32px;
+    }
+
+    .box {
+      background:#7f1d1d;
+      border:3px solid #f87171;
+      border-radius:16px;
+      padding:28px;
+    }
+
+    h1 {
+      margin-top:0;
+      font-size:32px;
+    }
+
+    code {
+      background:#111827;
+      padding:4px 8px;
+      border-radius:6px;
+    }
+
+    pre {
+      white-space:pre-wrap;
+      overflow:auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Preview failed</h1>
+    <p><strong>Path:</strong> <code>${escapeHtml(path)}</code></p>
+    <p><strong>Status:</strong> <code>${escapeHtml(result.status)}</code></p>
+    <pre>${escapeHtml(result.body)}</pre>
+  </div>
+</body>
+</html>`;
+}
+
+async function renderPreview(path) {
+  const result = await callAs(
+    clientARoleArn,
+    `preview-${path.replace(/\//g, "") || "root"}`,
+    path
+  );
+
+  if (!result.ok) {
+    return {
+      status: result.status === "ERR" ? 502 : result.status,
+      body: previewError(path, result)
+    };
+  }
+
+  return {
+    status: 200,
+    body: result.body
+  };
+}
+
 async function render() {
   const [
     aPublic,
@@ -436,6 +501,33 @@ async function render() {
       opacity:.9;
     }
 
+    .preview-grid {
+      margin-top:32px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:24px;
+    }
+
+    .preview-card {
+      background:#020617;
+      border:1px solid #334155;
+      border-radius:12px;
+      padding:16px;
+    }
+
+    .preview-card h2 {
+      font-size:24px;
+      margin:0 0 12px 0;
+    }
+
+    .preview-card iframe {
+      width:100%;
+      height:500px;
+      border:none;
+      border-radius:8px;
+      background:white;
+    }
+
     .log-grid {
       margin-top:32px;
       display:grid;
@@ -483,6 +575,18 @@ async function render() {
     ${card("Client B", "/admin/", bAdmin)}
   </div>
 
+  <div class="preview-grid">
+    <div class="preview-card">
+      <h2>Public Route: /public/</h2>
+      <iframe src="/preview/public"></iframe>
+    </div>
+
+    <div class="preview-card">
+      <h2>Admin Route: /admin/</h2>
+      <iframe src="/preview/admin"></iframe>
+    </div>
+  </div>
+
   <div class="log-grid">
     ${logSection(`Client A ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientALogs, true)}
     ${logSection(`Client B ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientBLogs, true)}
@@ -495,8 +599,35 @@ async function render() {
 }
 
 http.createServer(async (req, res) => {
+  if (req.url === "/preview/public") {
+    const preview = await renderPreview("/public/");
+
+    res.writeHead(preview.status, {
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store"
+    });
+
+    return res.end(preview.body);
+  }
+
+  if (req.url === "/preview/admin") {
+    const preview = await renderPreview("/admin/");
+
+    res.writeHead(preview.status, {
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store"
+    });
+
+    return res.end(preview.body);
+  }
+
   const html = await render();
-  res.writeHead(200, { "Content-Type": "text/html" });
+
+  res.writeHead(200, {
+    "Content-Type": "text/html",
+    "Cache-Control": "no-store"
+  });
+
   res.end(html);
 }).listen(3000, () => {
   console.log("dashboard listening on :3000");
