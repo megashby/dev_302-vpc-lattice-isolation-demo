@@ -123,7 +123,7 @@ async function getRecentLogs(logGroupName, minutes = LOG_LOOKBACK_MINUTES) {
       new FilterLogEventsCommand({
         logGroupName,
         startTime: Date.now() - minutes * 60 * 1000,
-        limit: 50,
+        limit: 100,
         interleaved: true
       })
     );
@@ -322,7 +322,7 @@ function previewError(path, result) {
 
     h1 {
       margin-top:0;
-      font-size:32px;
+      font-size:24px;
     }
 
     code {
@@ -464,7 +464,7 @@ async function render() {
     }
 
     h2 {
-      font-size:44px;
+      font-size:36px;
       margin:0 0 12px 0;
     }
 
@@ -490,7 +490,7 @@ async function render() {
 
     .summary {
       margin-top:14px;
-      font-size:16px;
+      font-size:18px;
       color:#dbeafe;
     }
 
@@ -522,7 +522,7 @@ async function render() {
 
     .preview-card iframe {
       width:100%;
-      height:500px;
+      height:300px;
       border:none;
       border-radius:8px;
       background:white;
@@ -552,8 +552,8 @@ async function render() {
       margin-top:12px;
       white-space:pre-wrap;
       color:#cbd5e1;
-      font-size:14px;
-      max-height:520px;
+      font-size:18px;
+      max-height:600px;
       overflow:auto;
       line-height:1.45;
     }
@@ -588,8 +588,8 @@ async function render() {
   </div>
 
   <div class="log-grid">
-    ${logSection(`Client A ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientALogs, true)}
-    ${logSection(`Client B ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientBLogs, true)}
+    ${logSection(`Client A ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientALogs)}
+    ${logSection(`Client B ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientBLogs)}
     ${logSection(`Router Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, routerLogs)}
     ${logSection(`ApplyAuth Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, applyAuthLogs)}
     ${logSection(`IsolateEndpoint Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, isolateEndpointLogs)}
