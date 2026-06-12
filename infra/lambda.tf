@@ -9,45 +9,45 @@ locals {
     filesha256("../src/lambda/apply-auth/Dockerfile")
   ])), 0, 16)
 
-  isolate_admin_image_tag = substr(sha256(join("", [
-    filesha256("../src/lambda/isolate-admin/index.py"),
-    filesha256("../src/lambda/isolate-admin/Dockerfile")
+  isolate_endpoint_image_tag = substr(sha256(join("", [
+    filesha256("../src/lambda/isolate-endpoint/index.py"),
+    filesha256("../src/lambda/isolate-endpoint/Dockerfile")
   ])), 0, 16)
 }
 
-resource "aws_ecr_repository" "isolate_admin_lambda" {
-  name = "${local.name}-isolate-admin"
+resource "aws_ecr_repository" "isolate_endpoint_lambda" {
+  name = "${local.name}-isolate-endpoint"
 }
 
-resource "null_resource" "build_and_push_isolate_admin" {
+resource "null_resource" "build_and_push_isolate_endpoint" {
   triggers = {
-    image_tag = local.isolate_admin_image_tag
+    image_tag = local.isolate_endpoint_image_tag
   }
 
   provisioner "local-exec" {
     command = <<EOT
       aws ecr get-login-password --region us-east-1 \
-      | docker login --username AWS --password-stdin ${aws_ecr_repository.isolate_admin_lambda.repository_url}
+      | docker login --username AWS --password-stdin ${aws_ecr_repository.isolate_endpoint_lambda.repository_url}
 
       docker build --platform linux/amd64 --provenance=false \
-        -t ${aws_ecr_repository.isolate_admin_lambda.repository_url}:${local.isolate_admin_image_tag} \
-        ../src/lambda/isolate-admin
+        -t ${aws_ecr_repository.isolate_endpoint_lambda.repository_url}:${local.isolate_endpoint_image_tag} \
+        ../src/lambda/isolate-endpoint
 
-      docker push ${aws_ecr_repository.isolate_admin_lambda.repository_url}:${local.isolate_admin_image_tag}
+      docker push ${aws_ecr_repository.isolate_endpoint_lambda.repository_url}:${local.isolate_endpoint_image_tag}
     EOT
   }
 }
 
-module "isolate_admin" {
+module "isolate_endpoint" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "~> 7.0"
 
-  function_name  = "${local.name}-isolate-admin"
+  function_name  = "${local.name}-isolate-endpoint"
   create_package = false
   package_type   = "Image"
 
   architectures = ["x86_64"]
-  image_uri     = "${aws_ecr_repository.isolate_admin_lambda.repository_url}:${local.isolate_admin_image_tag}"
+  image_uri     = "${aws_ecr_repository.isolate_endpoint_lambda.repository_url}:${local.isolate_endpoint_image_tag}"
 
   timeout = 180
 
@@ -88,7 +88,7 @@ module "isolate_admin" {
   create_current_version_allowed_triggers = false
 
   depends_on = [
-    null_resource.build_and_push_isolate_admin
+    null_resource.build_and_push_isolate_endpoint
   ]
 }
 

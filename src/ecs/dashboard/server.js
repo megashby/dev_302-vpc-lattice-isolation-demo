@@ -376,7 +376,7 @@ async function render() {
     bAdmin,
     routerLogs,
     applyAuthLogs,
-    isolateAdminLogs,
+    isolateEndpointLogs,
     clientALogs,
     clientBLogs
   ] = await Promise.all([
@@ -386,7 +386,7 @@ async function render() {
     callAs(clientBRoleArn, "client-b-admin", "/admin/"),
     getRecentLogs(process.env.ROUTER_LOG_GROUP),
     getRecentLogs(process.env.APPLY_AUTH_LOG_GROUP),
-    getRecentLogs(process.env.ISOLATE_ADMIN_LOG_GROUP),
+    getRecentLogs(process.env.ISOLATE_ENDPOINT_LOG_GROUP),
     getRecentLogs(process.env.CLIENT_A_LOG_GROUP),
     getRecentLogs(process.env.CLIENT_B_LOG_GROUP)
   ]);
@@ -592,7 +592,7 @@ async function render() {
     ${logSection(`Client B ECS logs, last ${LOG_LOOKBACK_MINUTES} min`, clientBLogs, true)}
     ${logSection(`Router Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, routerLogs)}
     ${logSection(`ApplyAuth Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, applyAuthLogs)}
-    ${logSection(`IsolateAdmin Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, isolateAdminLogs)}
+    ${logSection(`IsolateEndpoint Lambda logs, last ${LOG_LOOKBACK_MINUTES} min`, isolateEndpointLogs)}
   </div>
 </body>
 </html>`;

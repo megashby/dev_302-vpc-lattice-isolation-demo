@@ -4,7 +4,7 @@ resource "aws_cloudwatch_event_rule" "isolation_workflow" {
   event_pattern = jsonencode({
     source = [
       "demo.apply_auth",
-      "demo.isolate_admin",
+      "demo.isolate_endpoint",
       "demo.isolation_workflow",
       "demo.guardduty",
       "aws.guardduty",

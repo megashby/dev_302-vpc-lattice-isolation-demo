@@ -228,8 +228,8 @@ resource "aws_ecs_task_definition" "dashboard" {
           value = "/aws/lambda/${local.name}-apply-auth"
         },
         {
-          name  = "ISOLATE_ADMIN_LOG_GROUP"
-          value = "/aws/lambda/${local.name}-isolate-admin"
+          name  = "ISOLATE_ENDPOINT_LOG_GROUP"
+          value = "/aws/lambda/${local.name}-isolate-endpoint"
         },
         {
           name  = "CLIENT_A_LOG_GROUP"

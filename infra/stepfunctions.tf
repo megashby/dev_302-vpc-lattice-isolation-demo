@@ -28,7 +28,7 @@ resource "aws_iam_policy" "isolation_sfn" {
         ]
         Resource = [
           module.apply_auth.lambda_function_arn,
-          module.isolate_admin.lambda_function_arn,
+          module.isolate_endpoint.lambda_function_arn,
           module.isolation_router.lambda_function_arn,
         ]
       }
@@ -90,7 +90,7 @@ resource "aws_sfn_state_machine" "isolation_workflow" {
 
       ShiftAdminRoute = {
         Type       = "Task"
-        Resource   = module.isolate_admin.lambda_function_arn
+        Resource   = module.isolate_endpoint.lambda_function_arn
         ResultPath = "$.shiftRouteResult"
         Next       = "Done"
       }
