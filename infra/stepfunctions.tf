@@ -101,3 +101,7 @@ resource "aws_sfn_state_machine" "isolation_workflow" {
     }
   })
 }
+
+output "isolation_workflow_arn" {
+  value = aws_sfn_state_machine.isolation_workflow.arn
+}
